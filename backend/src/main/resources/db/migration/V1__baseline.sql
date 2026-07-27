@@ -1,0 +1,2 @@
+-- Walking Skeleton baseline.
+-- Business tables will be introduced by future Flyway migrations.
