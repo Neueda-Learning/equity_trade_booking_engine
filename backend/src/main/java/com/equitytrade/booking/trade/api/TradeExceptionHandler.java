@@ -3,6 +3,8 @@ package com.equitytrade.booking.trade.api;
 import com.equitytrade.booking.account.application.AccountConflictException;
 import com.equitytrade.booking.account.application.AccountNotFoundException;
 import com.equitytrade.booking.account.application.AccountUseCaseValidationException;
+import com.equitytrade.booking.marketdata.application.MarketDataUnavailableException;
+import com.equitytrade.booking.marketdata.application.MarketDataValidationException;
 import com.equitytrade.booking.trade.application.TradeUseCaseValidationException;
 import com.equitytrade.booking.trade.application.TradeConflictException;
 import com.equitytrade.booking.trade.application.TradeNotFoundException;
@@ -36,6 +38,8 @@ public class TradeExceptionHandler {
             URI.create("urn:equity-trade:problem:not-found");
     private static final URI CONFLICT_PROBLEM_TYPE =
             URI.create("urn:equity-trade:problem:conflict");
+    private static final URI MARKET_DATA_UNAVAILABLE_PROBLEM_TYPE =
+            URI.create("urn:equity-trade:problem:market-data-unavailable");
 
     @ExceptionHandler(TradeUseCaseValidationException.class)
     ResponseEntity<ProblemDetail> handleTradeValidation(
@@ -106,6 +110,31 @@ public class TradeExceptionHandler {
                 "Trade not found",
                 "The requested trade does not exist.",
                 Map.of("id", "does not exist"),
+                request);
+    }
+
+    @ExceptionHandler(MarketDataValidationException.class)
+    ResponseEntity<ProblemDetail> handleMarketDataValidation(
+            MarketDataValidationException exception,
+            HttpServletRequest request) {
+        return badRequest(
+                Map.of(exception.field(), exception.reason()),
+                request);
+    }
+
+    @ExceptionHandler(MarketDataUnavailableException.class)
+    ResponseEntity<ProblemDetail> handleMarketDataUnavailable(
+            MarketDataUnavailableException exception,
+            HttpServletRequest request) {
+        return problem(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                MARKET_DATA_UNAVAILABLE_PROBLEM_TYPE,
+                "Market data unavailable",
+                "No market quote is currently available.",
+                Map.of(
+                        "ticker",
+                        "market data is unavailable for "
+                                + exception.ticker()),
                 request);
     }
 

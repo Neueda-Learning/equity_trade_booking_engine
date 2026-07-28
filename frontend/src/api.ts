@@ -53,6 +53,24 @@ export interface Position {
   costBasis: number
 }
 
+export interface MarketQuote {
+  ticker: string
+  price: number
+  previousClose: number
+  change: number
+  changePercent: number
+  marketTimestamp: string
+  fetchedAt: string
+  source: string
+  mock: boolean
+  cached: boolean
+  stale: boolean
+}
+
+export interface MarketQuoteList {
+  items: MarketQuote[]
+}
+
 export interface ProblemDetails {
   type?: string
   title?: string
@@ -152,4 +170,31 @@ export function getPositions(accountId?: string, signal?: AbortSignal) {
     ? `?${new URLSearchParams({ accountId })}`
     : ''
   return request<Position[]>(`/api/positions${query}`, { signal })
+}
+
+export function getMarketQuotes(
+  accountId?: string,
+  signal?: AbortSignal,
+) {
+  const query = accountId
+    ? `?${new URLSearchParams({ accountId })}`
+    : ''
+  return request<MarketQuoteList>(
+    `/api/market-data/quotes${query}`,
+    { signal },
+  )
+}
+
+export function getMarketQuote(ticker: string, signal?: AbortSignal) {
+  return request<MarketQuote>(
+    `/api/market-data/quotes/${encodeURIComponent(ticker)}`,
+    { signal },
+  )
+}
+
+export function refreshMarketQuote(ticker: string) {
+  return request<MarketQuote>(
+    `/api/market-data/quotes/${encodeURIComponent(ticker)}/refresh`,
+    { method: 'POST' },
+  )
 }

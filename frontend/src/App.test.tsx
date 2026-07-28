@@ -40,7 +40,7 @@ describe('application navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Market Data' }))
     expect(
       screen.getByRole('heading', {
-        name: 'Market data provider not configured yet',
+        name: 'Market Data',
       }),
     ).toBeInTheDocument()
   })

@@ -17,6 +17,20 @@ spring:
           time_zone: UTC
   flyway:
     enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${REDIS_COMMAND_TIMEOUT:1s}
+      repositories:
+        enabled: false
+
+market-data:
+  provider: ${MARKET_DATA_PROVIDER:mock}
+  fresh-ttl: ${MARKET_DATA_FRESH_TTL:60s}
+  retention-ttl: ${MARKET_DATA_RETENTION_TTL:24h}
+  mock-window: ${MARKET_DATA_MOCK_WINDOW:60s}
 
 management:
   endpoints:

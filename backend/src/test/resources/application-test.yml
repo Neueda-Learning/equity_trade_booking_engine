@@ -14,3 +14,12 @@ spring:
           time_zone: UTC
   flyway:
     enabled: true
+  data:
+    redis:
+      connect-timeout: 100ms
+      timeout: 100ms
+
+management:
+  health:
+    redis:
+      enabled: false

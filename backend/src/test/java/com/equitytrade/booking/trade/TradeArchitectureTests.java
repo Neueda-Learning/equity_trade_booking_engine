@@ -36,4 +36,17 @@ class TradeArchitectureTests {
                     .that().resideInAPackage("..api..")
                     .should().dependOnClassesThat().resideInAPackage(
                             "..infrastructure.persistence..");
+
+    @ArchTest
+    static final ArchRule market_data_domain_is_framework_independent =
+            noClasses()
+                    .that().resideInAPackage("..marketdata.domain..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework..",
+                            "com.fasterxml.jackson..",
+                            "io.lettuce..",
+                            "redis.clients..",
+                            "..marketdata.api..",
+                            "..marketdata.application..",
+                            "..marketdata.infrastructure..");
 }
