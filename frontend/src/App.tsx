@@ -1,76 +1,74 @@
 import { useEffect, useState } from 'react'
-import './App.css'
+import { getHealth } from './api'
+import AccountsPage from './account/AccountsPage'
+import Dashboard from './dashboard/Dashboard'
+import MarketData from './market/MarketData'
 import TradeBooking from './trade/TradeBooking'
+import './App.css'
 
+type Page = 'Dashboard' | 'Accounts' | 'Activity' | 'Market Data'
 type ConnectionState = 'loading' | 'connected' | 'unavailable'
 
-interface HealthResponse {
-  status?: string
-}
+const pages: Page[] = ['Dashboard', 'Accounts', 'Activity', 'Market Data']
 
 function App() {
+  const [page, setPage] = useState<Page>('Dashboard')
   const [connectionState, setConnectionState] =
     useState<ConnectionState>('loading')
 
   useEffect(() => {
     const controller = new AbortController()
-
-    async function loadHealth() {
-      try {
-        const response = await fetch('/api/health', {
-          signal: controller.signal,
-        })
-        const health = (await response.json()) as HealthResponse
-
+    getHealth(controller.signal)
+      .then((health) =>
         setConnectionState(
-          response.ok && health.status === 'UP' ? 'connected' : 'unavailable',
-        )
-      } catch (error) {
+          health.status === 'UP' ? 'connected' : 'unavailable',
+        ),
+      )
+      .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
           setConnectionState('unavailable')
         }
-      }
-    }
-
-    void loadHealth()
+      })
     return () => controller.abort()
   }, [])
 
-  const status = {
-    loading: {
-      label: 'Loading',
-      message: 'Checking backend and database connectivity…',
-    },
-    connected: {
-      label: 'Connected',
-      message: 'Backend and database are available.',
-    },
-    unavailable: {
-      label: 'Unavailable',
-      message: 'The system health check could not be completed.',
-    },
-  }[connectionState]
-
   return (
-    <main className="app-shell">
-      <section className="status-card" aria-labelledby="page-title">
-        <p className="eyebrow">Walking Skeleton</p>
-        <h1 id="page-title">Equity Trade Booking Engine</h1>
-        <p className="summary">
-          Book BUY equity trades and review the immutable booking ledger.
-        </p>
-
-        <div className={`health health--${connectionState}`} aria-live="polite">
-          <span className="health__dot" aria-hidden="true" />
-          <div>
-            <p className="health__label">{status.label}</p>
-            <p className="health__message">{status.message}</p>
-          </div>
+    <div className="app-shell">
+      <header className="app-header">
+        <div>
+          <p className="eyebrow">Equity operations</p>
+          <h1>Trade Booking Engine</h1>
         </div>
-      </section>
+        <div className={`health-chip health-chip--${connectionState}`}>
+          <span aria-hidden="true" />
+          {connectionState === 'loading'
+            ? 'Loading'
+            : connectionState === 'connected'
+              ? 'Connected'
+              : 'Unavailable'}
+        </div>
+      </header>
 
-      <TradeBooking />
-    </main>
+      <nav className="main-nav" aria-label="Primary">
+        {pages.map((item) => (
+          <button
+            key={item}
+            type="button"
+            aria-current={page === item ? 'page' : undefined}
+            onClick={() => setPage(item)}
+          >
+            {item}
+          </button>
+        ))}
+      </nav>
+
+      <main className="page-content">
+        {page === 'Dashboard' && <Dashboard />}
+        {page === 'Accounts' && <AccountsPage />}
+        {page === 'Activity' && <TradeBooking />}
+        {page === 'Market Data' && <MarketData />}
+      </main>
+    </div>
   )
 }
 

@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public record TradeView(
         UUID id,
+        UUID accountId,
         String ticker,
         String side,
         BigDecimal quantity,
@@ -19,6 +20,7 @@ public record TradeView(
     static TradeView from(Trade trade) {
         return new TradeView(
                 trade.id(),
+                trade.accountId(),
                 trade.ticker(),
                 trade.side().name(),
                 trade.quantity(),

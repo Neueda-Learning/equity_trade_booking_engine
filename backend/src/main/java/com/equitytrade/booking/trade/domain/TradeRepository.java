@@ -1,8 +1,10 @@
 package com.equitytrade.booking.trade.domain;
 
+import java.util.UUID;
+
 public interface TradeRepository {
 
     Trade save(Trade trade);
 
-    TradePage findAll(int page, int size);
+    TradePage findAll(UUID accountId, int page, int size);
 }

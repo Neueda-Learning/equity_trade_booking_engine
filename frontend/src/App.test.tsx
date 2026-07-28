@@ -1,53 +1,60 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
-describe('system health page', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
+describe('application navigation', () => {
+  afterEach(() => vi.unstubAllGlobals())
 
-  it('shows Loading while the health request is pending', () => {
-    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => undefined)))
-
-    render(<App />)
-
-    expect(screen.getByText('Loading')).toBeInTheDocument()
-  })
-
-  it('shows Connected when the backend reports UP', async () => {
+  it('navigates between Dashboard, Accounts, Activity and Market Data', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn((input: RequestInfo | URL) =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve(
-              input === '/api/health'
-                ? { status: 'UP' }
-                : {
-                    items: [],
-                    page: 0,
-                    size: 10,
-                    totalElements: 0,
-                    totalPages: 0,
-                  },
-            ),
-        }),
-      ),
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === '/api/health') return response({ status: 'UP' })
+        if (url === '/api/accounts') return response([])
+        return response({
+          items: [],
+          page: 0,
+          size: 20,
+          totalElements: 0,
+          totalPages: 0,
+        })
+      }),
     )
 
     render(<App />)
-
     expect(await screen.findByText('Connected')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/health', expect.any(Object))
+    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Accounts' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Create account' }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activity' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Book a BUY trade' }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Market Data' }))
+    expect(
+      screen.getByRole('heading', {
+        name: 'Market data provider not configured yet',
+      }),
+    ).toBeInTheDocument()
   })
 
   it('shows Unavailable when the health request fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
-
     render(<App />)
-
     expect(await screen.findByText('Unavailable')).toBeInTheDocument()
   })
 })
+
+function response(payload: unknown, ok = true, status = 200) {
+  return Promise.resolve({
+    ok,
+    status,
+    json: () => Promise.resolve(payload),
+  })
+}

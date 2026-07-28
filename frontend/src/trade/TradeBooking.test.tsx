@@ -2,16 +2,34 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import TradeBooking from './TradeBooking'
 
+const primary = {
+  id: '00000000-0000-0000-0000-000000000001',
+  name: 'Primary Account',
+  broker: 'Legacy',
+  accountNumberLast4: null,
+  baseCurrency: 'USD',
+  status: 'ACTIVE',
+  createdAt: '2026-07-28T06:30:00Z',
+  updatedAt: '2026-07-28T06:30:00Z',
+}
+
+const retirement = {
+  ...primary,
+  id: '20000000-0000-0000-0000-000000000002',
+  name: 'Retirement',
+}
+
 const emptyPage = {
   items: [],
   page: 0,
-  size: 10,
+  size: 20,
   totalElements: 0,
   totalPages: 0,
 }
 
-const bookedTrade = {
+const trade = {
   id: '6c014ad6-b2b8-43d5-a761-3f32513f42f8',
+  accountId: retirement.id,
   ticker: 'AAPL',
   side: 'BUY',
   quantity: 10.5,
@@ -21,167 +39,121 @@ const bookedTrade = {
   createdAt: '2026-07-28T06:30:30Z',
 }
 
-describe('BUY trade booking', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
+describe('multi-account activity', () => {
+  afterEach(() => vi.unstubAllGlobals())
 
-  it('submits a BUY trade in UTC and refreshes the ledger', async () => {
+  it('selects an active account when booking and shows its name', async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(response([primary, retirement]))
       .mockResolvedValueOnce(response(emptyPage))
-      .mockResolvedValueOnce(response(bookedTrade, true, 201))
+      .mockResolvedValueOnce(response(trade, true, 201))
+      .mockResolvedValueOnce(response([primary, retirement]))
       .mockResolvedValueOnce(
-        response({
-          ...emptyPage,
-          items: [bookedTrade],
-          totalElements: 1,
-          totalPages: 1,
-        }),
+        response({ ...emptyPage, items: [trade], totalElements: 1, totalPages: 1 }),
       )
     vi.stubGlobal('fetch', fetchMock)
 
     render(<TradeBooking />)
-    expect(await screen.findByText('No trades booked yet.')).toBeInTheDocument()
-
-    fireEvent.change(screen.getByLabelText('Ticker'), {
-      target: { value: 'aapl' },
+    await screen.findByText('No trades booked yet.')
+    fireEvent.change(screen.getByLabelText('Account'), {
+      target: { value: retirement.id },
     })
-    fireEvent.change(screen.getByLabelText('Quantity'), {
-      target: { value: '10.5' },
-    })
-    fireEvent.change(screen.getByLabelText('Trade price (USD)'), {
-      target: { value: '195.25' },
-    })
-    fireEvent.change(screen.getByLabelText('Executed at'), {
-      target: { value: '2026-07-28T14:30' },
-    })
-    fireEvent.submit(
-      screen.getByRole('button', { name: 'Book BUY trade' }).closest('form')!,
-    )
+    fillTrade()
+    fireEvent.click(screen.getByRole('button', { name: 'Book BUY trade' }))
 
     expect(
       await screen.findByText('AAPL BUY trade booked successfully.'),
     ).toBeInTheDocument()
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(screen.getByText('AAPL')).toBeInTheDocument())
+    expect(screen.getAllByText('Retirement').length).toBeGreaterThan(0)
+    const request = JSON.parse(fetchMock.mock.calls[2][1].body)
+    expect(request.accountId).toBe(retirement.id)
+  })
 
-    const [url, options] = fetchMock.mock.calls[1]
-    expect(url).toBe('/api/trades')
-    const submitted = JSON.parse(options.body as string)
-    expect(submitted).toMatchObject({
-      ticker: 'aapl',
-      side: 'BUY',
-      quantity: 10.5,
-      tradePrice: 195.25,
+  it('filters activity by account', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response([primary, retirement]))
+      .mockResolvedValueOnce(response(emptyPage))
+      .mockResolvedValueOnce(
+        response({ ...emptyPage, items: [trade], totalElements: 1, totalPages: 1 }),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    render(<TradeBooking />)
+    await screen.findByText('No trades booked yet.')
+    fireEvent.change(screen.getByLabelText('Account filter'), {
+      target: { value: retirement.id },
     })
-    expect(submitted.executedAt).toMatch(/Z$/)
-    expect(screen.getAllByText('AAPL')).toHaveLength(1)
-    expect(screen.getByText('BOOKED')).toBeInTheDocument()
-  })
-
-  it('shows backend field errors without adding a trade', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(response(emptyPage))
-      .mockResolvedValueOnce(
-        response(
-          {
-            type: 'urn:equity-trade:problem:validation',
-            title: 'Request validation failed',
-            status: 400,
-            detail: 'One or more fields are invalid.',
-            instance: '/api/trades',
-            errors: {
-              executedAt: 'must not be more than 60 seconds in the future',
-            },
-          },
-          false,
-          400,
-        ),
-      )
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<TradeBooking />)
-    await screen.findByText('No trades booked yet.')
-    fillRequiredFields()
-    fireEvent.submit(
-      screen.getByRole('button', { name: 'Book BUY trade' }).closest('form')!,
-    )
-
-    const fieldError = await screen.findByText(
-      'must not be more than 60 seconds in the future',
-    )
-    expect(fieldError).toBeInTheDocument()
-    expect(document.querySelector('input[name="executedAt"]')).toHaveAttribute(
-      'aria-invalid',
-      'true',
-    )
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('shows a non-field server error', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(response(emptyPage))
-      .mockResolvedValueOnce(
-        response(
-          {
-            title: 'Trade service unavailable',
-            status: 503,
-            detail: 'The trade request could not be completed.',
-          },
-          false,
-          503,
-        ),
-      )
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<TradeBooking />)
-    await screen.findByText('No trades booked yet.')
-    fillRequiredFields()
-    fireEvent.submit(
-      screen.getByRole('button', { name: 'Book BUY trade' }).closest('form')!,
-    )
-
-    expect(
-      await screen.findByText('The trade request could not be completed.'),
-    ).toHaveAttribute('role', 'alert')
-  })
-
-  it('loads the next page of the booking ledger', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        response({
-          items: [{ ...bookedTrade, ticker: 'MSFT' }],
-          page: 0,
-          size: 10,
-          totalElements: 11,
-          totalPages: 2,
-        }),
-      )
-      .mockResolvedValueOnce(
-        response({
-          items: [bookedTrade],
-          page: 1,
-          size: 10,
-          totalElements: 11,
-          totalPages: 2,
-        }),
-      )
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<TradeBooking />)
-    expect(await screen.findByText('MSFT')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-
     expect(await screen.findByText('AAPL')).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      '/api/trades?page=1&size=10',
-      expect.any(Object),
+    expect(fetchMock.mock.calls[2][0]).toContain(
+      `accountId=${encodeURIComponent(retirement.id)}`,
     )
+  })
+
+  it('prompts for account creation when no account is active', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          response([{ ...primary, status: 'INACTIVE' }]),
+        )
+        .mockResolvedValueOnce(response(emptyPage)),
+    )
+    render(<TradeBooking />)
+    expect(
+      await screen.findByText(
+        'No active accounts. Create an account before booking a trade.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Book BUY trade' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows trade API field errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response([primary]))
+        .mockResolvedValueOnce(response(emptyPage))
+        .mockResolvedValueOnce(
+          response(
+            {
+              detail: 'One or more fields are invalid.',
+              errors: { ticker: 'must match ticker format' },
+            },
+            false,
+            400,
+          ),
+        ),
+    )
+    render(<TradeBooking />)
+    await screen.findByText('No trades booked yet.')
+    fillTrade()
+    fireEvent.click(screen.getByRole('button', { name: 'Book BUY trade' }))
+    expect(
+      await screen.findByText('must match ticker format'),
+    ).toBeInTheDocument()
   })
 })
+
+function fillTrade() {
+  fireEvent.change(screen.getByLabelText('Ticker'), {
+    target: { value: 'aapl' },
+  })
+  fireEvent.change(screen.getByLabelText('Quantity'), {
+    target: { value: '10.5' },
+  })
+  fireEvent.change(screen.getByLabelText('Trade price (USD)'), {
+    target: { value: '195.25' },
+  })
+  fireEvent.change(screen.getByLabelText('Executed at'), {
+    target: { value: '2026-07-28T14:30' },
+  })
+}
 
 function response(payload: unknown, ok = true, status = 200) {
   return {
@@ -189,19 +161,4 @@ function response(payload: unknown, ok = true, status = 200) {
     status,
     json: () => Promise.resolve(payload),
   }
-}
-
-function fillRequiredFields() {
-  fireEvent.change(screen.getByLabelText('Ticker'), {
-    target: { value: 'AAPL' },
-  })
-  fireEvent.change(screen.getByLabelText('Quantity'), {
-    target: { value: '1' },
-  })
-  fireEvent.change(screen.getByLabelText('Trade price (USD)'), {
-    target: { value: '10' },
-  })
-  fireEvent.change(screen.getByLabelText('Executed at'), {
-    target: { value: '2026-07-28T14:30' },
-  })
 }

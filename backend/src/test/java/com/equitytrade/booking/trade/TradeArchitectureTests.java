@@ -8,7 +8,7 @@ import com.tngtech.archunit.lang.ArchRule;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 @AnalyzeClasses(
-        packages = "com.equitytrade.booking.trade",
+        packages = "com.equitytrade.booking",
         importOptions = ImportOption.DoNotIncludeTests.class)
 class TradeArchitectureTests {
 

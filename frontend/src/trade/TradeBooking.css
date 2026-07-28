@@ -50,7 +50,8 @@
   font-weight: 700;
 }
 
-.trade-form input {
+.trade-form input,
+.trade-form select {
   width: 100%;
   padding: 11px 12px;
   border: 1px solid #cbd5e1;
@@ -60,7 +61,8 @@
   font: inherit;
 }
 
-.trade-form input:focus {
+.trade-form input:focus,
+.trade-form select:focus {
   border-color: #2563eb;
   outline: 3px solid rgba(37, 99, 235, 0.12);
 }
@@ -130,6 +132,14 @@
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 22px;
+}
+
+.ledger-heading label {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .trade-count {
