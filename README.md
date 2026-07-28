@@ -1,9 +1,9 @@
 # Equity Trade Booking Engine
 
-This repository currently contains the first agile increment: a runnable,
-testable **Walking Skeleton**. It proves the path from browser to React, through
-the Spring Boot health API, to MySQL. It is a modular monolith, not a collection
-of microservices.
+This repository contains a modular monolith with a runnable Walking Skeleton
+and its second agile increment: **BUY Trade Booking**. A user can book a BUY
+trade in React, persist it through Spring Boot and MySQL, and review the
+paginated booking ledger.
 
 ## Technology stack
 
@@ -62,6 +62,7 @@ Frontend tests and build:
 cd frontend
 npm ci
 npm test -- --run
+npm run lint
 npm run build
 ```
 
@@ -91,12 +92,38 @@ The values in `.env.example` are safe examples for local development only.
 They must never be reused in production; use independently generated secrets
 and your deployment platform's secret management.
 
+## BUY Trade Booking API
+
+Create a BUY trade:
+
+```bash
+curl -X POST http://localhost:8080/api/trades \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "ticker": "aapl",
+    "side": "BUY",
+    "quantity": 10.5,
+    "tradePrice": 195.25,
+    "executedAt": "2026-07-28T06:30:00Z"
+  }'
+```
+
+List trades in descending execution-time order:
+
+```bash
+curl 'http://localhost:8080/api/trades?page=0&size=10'
+```
+
+Ticker normalization and all business validation happen on the backend.
+`executedAt` is submitted as UTC, while the browser form accepts an editable
+local date and time. Pagination is zero-based and supports page sizes from 1
+through 100.
+
 ## Current scope
 
-This increment deliberately contains no Trade model or CRUD, Position or P&L,
-Market Data integration or cache, login, Swagger, Redis, messaging, or
-placeholder business tables. Database schema changes are reserved for Flyway;
-Hibernate schema mutation is disabled.
-
-The next agile increment will implement **Trade Booking** within the modular
-monolith.
+This increment accepts BUY trades only. SELL requests are rejected and are
+never persisted. It deliberately contains no trade cancellation or deletion,
+trade-details endpoint, Position, average cost, P&L, Market Data integration or
+cache, ticker market verification, user management, idempotency, Swagger,
+Redis, messaging, or charts. Database schema changes are managed by Flyway;
+Hibernate only validates the schema.

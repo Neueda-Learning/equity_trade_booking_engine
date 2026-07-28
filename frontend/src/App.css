@@ -1,14 +1,16 @@
-.status-page {
+.app-shell {
   min-height: 100svh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 40px 0 64px;
 }
 
 .status-card {
-  width: min(640px, 100%);
-  padding: clamp(32px, 7vw, 64px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: 28px 48px;
+  align-items: end;
+  padding: clamp(28px, 5vw, 48px);
   border: 1px solid var(--border);
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.92);
@@ -25,6 +27,7 @@
 }
 
 .summary {
+  grid-column: 1;
   max-width: 540px;
   margin: 0;
   color: var(--text-muted);
@@ -32,10 +35,12 @@
 }
 
 .health {
+  grid-column: 2;
+  grid-row: 1 / span 3;
   display: flex;
   gap: 14px;
   align-items: flex-start;
-  margin-top: 42px;
+  margin: 0;
   padding: 18px 20px;
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -72,4 +77,19 @@
   margin: 3px 0 0;
   color: var(--text-muted);
   font-size: 0.92rem;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    width: min(100% - 24px, 1180px);
+    padding-top: 20px;
+  }
+
+  .status-card {
+    display: block;
+  }
+
+  .health {
+    margin-top: 28px;
+  }
 }

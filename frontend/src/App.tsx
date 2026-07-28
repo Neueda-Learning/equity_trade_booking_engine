@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
+import TradeBooking from './trade/TradeBooking'
 
 type ConnectionState = 'loading' | 'connected' | 'unavailable'
 
@@ -51,12 +52,12 @@ function App() {
   }[connectionState]
 
   return (
-    <main className="status-page">
+    <main className="app-shell">
       <section className="status-card" aria-labelledby="page-title">
         <p className="eyebrow">Walking Skeleton</p>
         <h1 id="page-title">Equity Trade Booking Engine</h1>
         <p className="summary">
-          A modular monolith foundation for reliable equity trade booking.
+          Book BUY equity trades and review the immutable booking ledger.
         </p>
 
         <div className={`health health--${connectionState}`} aria-live="polite">
@@ -67,6 +68,8 @@ function App() {
           </div>
         </div>
       </section>
+
+      <TradeBooking />
     </main>
   )
 }

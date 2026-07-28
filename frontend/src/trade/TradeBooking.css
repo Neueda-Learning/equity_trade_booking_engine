@@ -1,0 +1,218 @@
+.trade-workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.5fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.booking-panel,
+.ledger-panel {
+  padding: 30px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 16px 40px rgba(17, 24, 39, 0.08);
+}
+
+.section-kicker {
+  margin: 0 0 8px;
+  color: #2563eb;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.trade-workspace h2 {
+  margin: 0;
+  font-size: 1.55rem;
+  letter-spacing: -0.025em;
+}
+
+.section-copy {
+  margin: 10px 0 24px;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.trade-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 14px;
+}
+
+.trade-form label {
+  display: grid;
+  gap: 7px;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.trade-form input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  color: var(--text);
+  background: #fff;
+  font: inherit;
+}
+
+.trade-form input:focus {
+  border-color: #2563eb;
+  outline: 3px solid rgba(37, 99, 235, 0.12);
+}
+
+.trade-form input[readonly] {
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.field-wide,
+.trade-form button {
+  grid-column: 1 / -1;
+}
+
+.trade-form button,
+.pagination button {
+  border: 0;
+  border-radius: 9px;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.trade-form button {
+  padding: 12px 18px;
+  color: #fff;
+  background: #1d4ed8;
+}
+
+.trade-form button:hover:not(:disabled) {
+  background: #1e40af;
+}
+
+.trade-form button:disabled,
+.pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.form-message {
+  margin: 16px 0 0;
+  padding: 11px 12px;
+  border-radius: 9px;
+  font-size: 0.88rem;
+}
+
+.form-message--success {
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.form-message--error,
+.table-state--error {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.ledger-heading {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.trade-count {
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #475569;
+  background: #f1f5f9;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+th,
+td {
+  padding: 13px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  color: #64748b;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ticker-cell {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.status-pill {
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #166534;
+  background: #dcfce7;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.table-state {
+  margin: 0;
+  padding: 42px 20px;
+  border-radius: 12px;
+  color: var(--text-muted);
+  background: #f8fafc;
+  text-align: center;
+}
+
+.pagination {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 20px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.pagination button {
+  padding: 8px 12px;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+@media (max-width: 940px) {
+  .trade-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .booking-panel,
+  .ledger-panel {
+    padding: 22px 18px;
+  }
+
+  .trade-form {
+    grid-template-columns: 1fr;
+  }
+}
