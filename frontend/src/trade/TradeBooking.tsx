@@ -7,6 +7,7 @@ import {
 } from 'react'
 import {
   ApiProblemError,
+  cancelTrade,
   createTrade,
   getAccounts,
   getTrades,
@@ -26,6 +27,7 @@ function currentLocalDateTime() {
 function TradeBooking() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState('')
+  const [side, setSide] = useState<'BUY' | 'SELL'>('BUY')
   const [filterAccountId, setFilterAccountId] = useState('')
   const [ticker, setTicker] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -40,6 +42,8 @@ function TradeBooking() {
   const [message, setMessage] = useState('')
   const [serverError, setServerError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [activityError, setActivityError] = useState('')
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
 
   const activeAccounts = useMemo(
     () => accounts.filter((account) => account.status === 'ACTIVE'),
@@ -96,12 +100,12 @@ function TradeBooking() {
       const trade = await createTrade({
         accountId,
         ticker,
-        side: 'BUY',
+        side,
         quantity: Number(quantity),
         tradePrice: Number(tradePrice),
         executedAt: new Date(executedAt).toISOString(),
       })
-      setMessage(`${trade.ticker} BUY trade booked successfully.`)
+      setMessage(`${trade.ticker} ${trade.side} trade booked successfully.`)
       setTicker('')
       setQuantity('')
       setTradePrice('')
@@ -121,11 +125,35 @@ function TradeBooking() {
     }
   }
 
+  async function cancel(id: string) {
+    if (!window.confirm('Cancel this trade?')) return
+    setCancellingId(id)
+    setActivityError('')
+    try {
+      await cancelTrade(id)
+      setMessage('Trade cancelled successfully.')
+      setLoading(true)
+      setRefreshVersion((version) => version + 1)
+    } catch (error) {
+      if (error instanceof ApiProblemError) {
+        setActivityError(
+          error.problem.errors?.quantity ??
+            error.problem.detail ??
+            error.message,
+        )
+      } else {
+        setActivityError('The cancellation request could not reach the backend.')
+      }
+    } finally {
+      setCancellingId(null)
+    }
+  }
+
   return (
     <section className="trade-workspace" aria-labelledby="activity-heading">
       <div className="booking-panel">
         <p className="section-kicker">New activity</p>
-        <h2 id="activity-heading">Book a BUY trade</h2>
+        <h2 id="activity-heading">Book a trade</h2>
         {activeAccounts.length === 0 ? (
           <p className="table-state">
             No active accounts. Create an account before booking a trade.
@@ -144,6 +172,16 @@ function TradeBooking() {
                   {account.name}
                 </option>
               ))}
+            </TradeSelect>
+            <TradeSelect
+              label="Side"
+              name="side"
+              value={side}
+              error={fieldErrors.side}
+              onChange={(value) => setSide(value as 'BUY' | 'SELL')}
+            >
+              <option value="BUY">BUY</option>
+              <option value="SELL">SELL</option>
             </TradeSelect>
             <TradeInput
               label="Ticker"
@@ -188,7 +226,7 @@ function TradeBooking() {
               className="field-wide"
             />
             <button type="submit" disabled={saving}>
-              {saving ? 'Booking…' : 'Book BUY trade'}
+              {saving ? 'Booking…' : `Book ${side} trade`}
             </button>
           </form>
         )}
@@ -229,6 +267,11 @@ function TradeBooking() {
         </div>
         {loading && <p className="table-state">Loading trades…</p>}
         {listError && <p className="table-state table-state--error">{listError}</p>}
+        {activityError && (
+          <p className="table-state table-state--error" role="alert">
+            {activityError}
+          </p>
+        )}
         {!loading && !listError && tradePage?.items.length === 0 && (
           <p className="table-state">No trades booked yet.</p>
         )}
@@ -244,6 +287,8 @@ function TradeBooking() {
                   <th>Price (USD)</th>
                   <th>Executed</th>
                   <th>Status</th>
+                  <th>Cancelled</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -256,6 +301,27 @@ function TradeBooking() {
                     <td>{trade.tradePrice}</td>
                     <td>{new Date(trade.executedAt).toLocaleString()}</td>
                     <td><span className="status-pill">{trade.status}</span></td>
+                    <td>
+                      {trade.cancelledAt
+                        ? new Date(trade.cancelledAt).toLocaleString()
+                        : '—'}
+                    </td>
+                    <td>
+                      {trade.status === 'BOOKED' ? (
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          disabled={cancellingId === trade.id}
+                          onClick={() => void cancel(trade.id)}
+                        >
+                          {cancellingId === trade.id
+                            ? 'Cancelling…'
+                            : 'Cancel'}
+                        </button>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

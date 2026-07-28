@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.MySQLContainer;
@@ -28,6 +31,12 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -39,12 +48,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @SpringBootTest
 @Testcontainers
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class TradeBookingMySqlIT {
 
     private static final String PRIMARY_ACCOUNT_ID =
             "00000000-0000-0000-0000-000000000001";
     private static final String HISTORICAL_TRADE_ID =
             "10000000-0000-0000-0000-000000000001";
+    private static final AtomicBoolean DATABASE_PREPARED = new AtomicBoolean();
 
     @Container
     private static final MySQLContainer<?> MYSQL =
@@ -72,20 +83,14 @@ class TradeBookingMySqlIT {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @BeforeEach
-    void deleteTrades() {
-        jdbcTemplate.update(
-                "DELETE FROM trades WHERE id <> ?",
-                HISTORICAL_TRADE_ID);
-    }
-
     @Test
+    @Order(1)
     void flywayCreatesExpectedMySqlSchema() {
         Integer successfulMigrations = jdbcTemplate.queryForObject(
                 """
                         SELECT COUNT(*)
                         FROM flyway_schema_history
-                        WHERE version IN ('1', '2', '3') AND success = 1
+                        WHERE version IN ('1', '2', '3', '4') AND success = 1
                         """,
                 Integer.class);
         Integer accountTableCount = jdbcTemplate.queryForObject(
@@ -108,14 +113,50 @@ class TradeBookingMySqlIT {
                 "SELECT account_id FROM trades WHERE id = ?",
                 String.class,
                 HISTORICAL_TRADE_ID);
+        Integer positionIndexCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.statistics
+                        WHERE table_schema = DATABASE()
+                          AND table_name = 'trades'
+                          AND index_name = 'idx_trades_position_replay'
+                        """,
+                Integer.class);
+        Integer cancelledColumnCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_schema = DATABASE()
+                          AND table_name = 'trades'
+                          AND column_name = 'cancelled_at'
+                          AND datetime_precision = 6
+                        """,
+                Integer.class);
+        Integer lifecycleConstraintCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.table_constraints
+                        WHERE constraint_schema = DATABASE()
+                          AND table_name = 'trades'
+                          AND constraint_type = 'CHECK'
+                          AND constraint_name IN (
+                            'chk_trades_side',
+                            'chk_trades_status'
+                          )
+                        """,
+                Integer.class);
 
-        assertThat(successfulMigrations).isEqualTo(3);
+        assertThat(successfulMigrations).isEqualTo(4);
         assertThat(accountTableCount).isEqualTo(1);
         assertThat(foreignKeyCount).isEqualTo(1);
         assertThat(historicalAccountId).isEqualTo(PRIMARY_ACCOUNT_ID);
+        assertThat(positionIndexCount).isEqualTo(6);
+        assertThat(cancelledColumnCount).isEqualTo(1);
+        assertThat(lifecycleConstraintCount).isEqualTo(2);
     }
 
     @Test
+    @Order(2)
     void booksAndReadsBuyTradeThroughMySql() throws Exception {
         BigDecimal quantity = new BigDecimal("1234567890123.123456");
         BigDecimal tradePrice = new BigDecimal("9876543210123.654321");
@@ -178,7 +219,8 @@ class TradeBookingMySqlIT {
     }
 
     @Test
-    void rejectsSellAndExcessPrecisionWithoutWritingToMySql()
+    @Order(3)
+    void rejectsOversellAndExcessPrecisionWithoutWritingToMySql()
             throws Exception {
         long initialCount = tradeCount();
         Instant executedAt = Instant.now().minusSeconds(5);
@@ -187,22 +229,21 @@ class TradeBookingMySqlIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(tradeRequest(
                                 PRIMARY_ACCOUNT_ID,
-                                "AAPL",
+                                "NOSHRT",
                                 "SELL",
                                 BigDecimal.ONE,
                                 BigDecimal.TEN,
                                 executedAt)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isConflict())
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.errors.side")
-                        .value("only BUY trades are supported"));
+                .andExpect(jsonPath("$.errors.quantity").exists());
 
         mockMvc.perform(post("/api/trades")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(tradeRequest(
                                 PRIMARY_ACCOUNT_ID,
-                                "AAPL",
+                                "PRECISE",
                                 "BUY",
                                 new BigDecimal("1.0000001"),
                                 BigDecimal.TEN,
@@ -217,6 +258,7 @@ class TradeBookingMySqlIT {
     }
 
     @Test
+    @Order(4)
     void persistsAccountsAndIsolatesActivityByAccount() throws Exception {
         String first = createAccount("Taxable", "IBKR", "1234");
         String second = createAccount("Retirement", "Schwab", "5678");
@@ -257,6 +299,133 @@ class TradeBookingMySqlIT {
                 second)).isEqualTo(2);
     }
 
+    @Test
+    @Order(5)
+    void serializesConcurrentSellsWithAnAccountRowLock() throws Exception {
+        Instant buyTime = Instant.now().minusSeconds(30);
+        mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(
+                                PRIMARY_ACCOUNT_ID,
+                                "CONCUR",
+                                "BUY",
+                                new BigDecimal("10"),
+                                BigDecimal.TEN,
+                                buyTime)))
+                .andExpect(status().isCreated());
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Integer>> results = List.of(
+                    executor.submit(() -> concurrentSell(ready, start)),
+                    executor.submit(() -> concurrentSell(ready, start)));
+            ready.await();
+            start.countDown();
+            List<Integer> statuses = results.stream()
+                    .map(result -> {
+                        try {
+                            return result.get();
+                        } catch (Exception exception) {
+                            throw new AssertionError(exception);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+
+            assertThat(statuses).containsExactly(201, 409);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        mockMvc.perform(get("/api/positions")
+                        .param("accountId", PRIMARY_ACCOUNT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.ticker == 'CONCUR')].quantity")
+                        .value(2));
+    }
+
+    @Test
+    @Order(6)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void persistsBuySellAndCancellationBeforeApplicationRestart()
+            throws Exception {
+        Instant buyTime = Instant.now().minusSeconds(30);
+        MvcResult buy = mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(
+                                PRIMARY_ACCOUNT_ID,
+                                "RSTRT",
+                                "BUY",
+                                new BigDecimal("10"),
+                                new BigDecimal("25"),
+                                buyTime)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult sell = mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(
+                                PRIMARY_ACCOUNT_ID,
+                                "RSTRT",
+                                "SELL",
+                                new BigDecimal("4"),
+                                new BigDecimal("30"),
+                                buyTime.plusSeconds(5))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String sellId = objectMapper.readTree(
+                sell.getResponse().getContentAsString()).path("id").asText();
+        mockMvc.perform(post("/api/trades/{id}/cancel", sellId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM trades
+                        WHERE ticker = 'RSTRT'
+                          AND side = 'SELL'
+                          AND status = 'CANCELLED'
+                          AND cancelled_at IS NOT NULL
+                        """,
+                Integer.class)).isEqualTo(1);
+        assertThat(objectMapper.readTree(
+                buy.getResponse().getContentAsString()).path("id").asText())
+                .isNotBlank();
+    }
+
+    @Test
+    @Order(7)
+    void restoresPositionFromMySqlAfterApplicationContextRestart()
+            throws Exception {
+        mockMvc.perform(get("/api/positions")
+                        .param("accountId", PRIMARY_ACCOUNT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.ticker == 'RSTRT')].quantity")
+                        .value(10))
+                .andExpect(jsonPath("$[?(@.ticker == 'RSTRT')].costBasis")
+                        .value(250));
+    }
+
+    private int concurrentSell(
+            CountDownLatch ready,
+            CountDownLatch start) throws Exception {
+        ready.countDown();
+        start.await();
+        return mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(
+                                PRIMARY_ACCOUNT_ID,
+                                "CONCUR",
+                                "SELL",
+                                new BigDecimal("8"),
+                                new BigDecimal("12"),
+                                Instant.now().minusSeconds(5))))
+                .andReturn()
+                .getResponse()
+                .getStatus();
+    }
+
     private String tradeRequest(
             String accountId,
             String ticker,
@@ -295,6 +464,9 @@ class TradeBookingMySqlIT {
     }
 
     private static void prepareHistoricalTradeAtV2() throws Exception {
+        if (!DATABASE_PREPARED.compareAndSet(false, true)) {
+            return;
+        }
         Flyway.configure()
                 .dataSource(
                         MYSQL.getJdbcUrl(),

@@ -19,12 +19,13 @@ export interface Trade {
   id: string
   accountId: string
   ticker: string
-  side: 'BUY'
+  side: 'BUY' | 'SELL'
   quantity: number
   tradePrice: number
   executedAt: string
-  status: 'BOOKED'
+  status: 'BOOKED' | 'CANCELLED'
   createdAt: string
+  cancelledAt: string | null
 }
 
 export interface TradePage {
@@ -38,10 +39,18 @@ export interface TradePage {
 export interface TradeInput {
   accountId: string
   ticker: string
-  side: 'BUY'
+  side: 'BUY' | 'SELL'
   quantity: number
   tradePrice: number
   executedAt: string
+}
+
+export interface Position {
+  accountId: string | null
+  ticker: string
+  quantity: number
+  averageCost: number
+  costBasis: number
 }
 
 export interface ProblemDetails {
@@ -130,4 +139,17 @@ export function createTrade(input: TradeInput) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
+}
+
+export function cancelTrade(id: string) {
+  return request<Trade>(`/api/trades/${id}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export function getPositions(accountId?: string, signal?: AbortSignal) {
+  const query = accountId
+    ? `?${new URLSearchParams({ accountId })}`
+    : ''
+  return request<Position[]>(`/api/positions${query}`, { signal })
 }

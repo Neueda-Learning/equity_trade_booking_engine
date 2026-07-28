@@ -15,7 +15,8 @@ public record TradeView(
         BigDecimal tradePrice,
         Instant executedAt,
         String status,
-        Instant createdAt) {
+        Instant createdAt,
+        Instant cancelledAt) {
 
     static TradeView from(Trade trade) {
         return new TradeView(
@@ -27,6 +28,7 @@ public record TradeView(
                 trade.tradePrice(),
                 trade.executedAt(),
                 trade.status().name(),
-                trade.createdAt());
+                trade.createdAt(),
+                trade.cancelledAt());
     }
 }

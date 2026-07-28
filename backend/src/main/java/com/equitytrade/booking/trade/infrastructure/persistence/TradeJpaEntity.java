@@ -47,6 +47,9 @@ class TradeJpaEntity {
     @Column(name = "created_at", nullable = false, columnDefinition = "datetime(6)")
     private LocalDateTime createdAt;
 
+    @Column(name = "cancelled_at", columnDefinition = "datetime(6)")
+    private LocalDateTime cancelledAt;
+
     protected TradeJpaEntity() {
     }
 
@@ -59,7 +62,8 @@ class TradeJpaEntity {
             BigDecimal tradePrice,
             LocalDateTime executedAt,
             TradeStatus status,
-            LocalDateTime createdAt) {
+            LocalDateTime createdAt,
+            LocalDateTime cancelledAt) {
         this.id = id;
         this.accountId = accountId;
         this.ticker = ticker;
@@ -69,6 +73,7 @@ class TradeJpaEntity {
         this.executedAt = executedAt;
         this.status = status;
         this.createdAt = createdAt;
+        this.cancelledAt = cancelledAt;
     }
 
     String getId() {
@@ -105,5 +110,9 @@ class TradeJpaEntity {
 
     LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    LocalDateTime getCancelledAt() {
+        return cancelledAt;
     }
 }

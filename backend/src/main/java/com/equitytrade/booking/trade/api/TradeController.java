@@ -6,6 +6,7 @@ import com.equitytrade.booking.trade.application.TradeView;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,6 +23,11 @@ public class TradeController {
 
     public TradeController(TradeApplicationService tradeApplicationService) {
         this.tradeApplicationService = tradeApplicationService;
+    }
+
+    @PostMapping("/{id}/cancel")
+    public TradeResponse cancel(@PathVariable UUID id) {
+        return TradeResponse.from(tradeApplicationService.cancel(id));
     }
 
     @PostMapping

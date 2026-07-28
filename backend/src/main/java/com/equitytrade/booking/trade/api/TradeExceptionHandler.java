@@ -4,6 +4,8 @@ import com.equitytrade.booking.account.application.AccountConflictException;
 import com.equitytrade.booking.account.application.AccountNotFoundException;
 import com.equitytrade.booking.account.application.AccountUseCaseValidationException;
 import com.equitytrade.booking.trade.application.TradeUseCaseValidationException;
+import com.equitytrade.booking.trade.application.TradeConflictException;
+import com.equitytrade.booking.trade.application.TradeNotFoundException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -78,6 +80,32 @@ public class TradeExceptionHandler {
                 "Request conflict",
                 "The request conflicts with the current account state.",
                 Map.of(exception.field(), exception.reason()),
+                request);
+    }
+
+    @ExceptionHandler(TradeConflictException.class)
+    ResponseEntity<ProblemDetail> handleTradeConflict(
+            TradeConflictException exception,
+            HttpServletRequest request) {
+        return problem(
+                HttpStatus.CONFLICT,
+                CONFLICT_PROBLEM_TYPE,
+                "Request conflict",
+                "The request conflicts with the current position.",
+                Map.of(exception.field(), exception.reason()),
+                request);
+    }
+
+    @ExceptionHandler(TradeNotFoundException.class)
+    ResponseEntity<ProblemDetail> handleTradeNotFound(
+            TradeNotFoundException exception,
+            HttpServletRequest request) {
+        return problem(
+                HttpStatus.NOT_FOUND,
+                NOT_FOUND_PROBLEM_TYPE,
+                "Trade not found",
+                "The requested trade does not exist.",
+                Map.of("id", "does not exist"),
                 request);
     }
 

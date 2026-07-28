@@ -4,10 +4,10 @@
 
 # Equity Trade Booking Engine
 
-This repository contains a modular monolith for account-scoped **BUY Trade
-Booking**. A user can manage multiple securities accounts, book a BUY trade
-against an active account, persist it through Spring Boot and MySQL, and review
-the filtered, paginated Activity ledger.
+This repository contains a modular monolith for account-scoped trade lifecycle
+management. A user can manage multiple securities accounts, book BUY and SELL
+trades against an active account, cancel eligible trades, review positions, and
+inspect the filtered, paginated Activity ledger.
 
 ## Technology stack
 
@@ -122,7 +122,7 @@ Accounts can be listed at `GET /api/accounts`, retrieved at
 `GET /api/accounts/{id}`, edited with `PATCH /api/accounts/{id}`, and
 idempotently deactivated with `POST /api/accounts/{id}/deactivate`.
 
-Create a BUY trade using an active account UUID:
+Create a BUY or SELL trade using an active account UUID:
 
 ```bash
 curl -X POST http://localhost:8080/api/trades \
@@ -149,12 +149,31 @@ on the backend. `executedAt` is submitted as UTC, while the browser form accepts
 an editable local date and time. Pagination is zero-based and supports page
 sizes from 1 through 100.
 
+Cancel a trade without deleting it:
+
+```bash
+curl -X POST \
+  http://localhost:8080/api/trades/00000000-0000-0000-0000-000000000002/cancel
+```
+
+List aggregate positions or positions for one account:
+
+```bash
+curl http://localhost:8080/api/positions
+curl 'http://localhost:8080/api/positions?accountId=00000000-0000-0000-0000-000000000001'
+curl http://localhost:8080/api/accounts/00000000-0000-0000-0000-000000000001/positions
+```
+
+SELL and cancellation validation replay BOOKED trades in chronological order,
+so a trade cannot make an account/ticker position negative at any point.
+Positions use weighted average cost and exclude CANCELLED trades.
+
 ## Current scope
 
-This increment accepts BUY trades only. SELL requests are rejected and are
-never persisted. Accounts are deactivated rather than deleted, and inactive
-accounts remain queryable but cannot accept new trades. It deliberately
-contains no trade cancellation or deletion, trade-details endpoint, Position,
-average cost, P&L, Market Data integration or cache, ticker market verification,
-user management, idempotency, Swagger, Redis, messaging, or charts. Database
-schema changes are managed by Flyway; Hibernate only validates the schema.
+This increment does not allow short positions. Accounts are deactivated rather
+than deleted, and inactive accounts remain queryable but cannot accept new
+trades. Trades can be cancelled but are never physically deleted. It
+deliberately contains no trade editing, FIFO/LIFO accounting, cash balance,
+P&L, Market Data integration or cache, ticker market verification, user
+management, Swagger, Redis, messaging, or charts. Database schema changes are
+managed by Flyway; Hibernate only validates the schema.

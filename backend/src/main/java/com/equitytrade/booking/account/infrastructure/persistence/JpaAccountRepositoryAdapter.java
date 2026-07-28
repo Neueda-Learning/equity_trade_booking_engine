@@ -29,6 +29,11 @@ public class JpaAccountRepositoryAdapter implements AccountRepository {
     }
 
     @Override
+    public Optional<Account> findByIdForUpdate(UUID id) {
+        return repository.findByIdForUpdate(id.toString()).map(this::toDomain);
+    }
+
+    @Override
     public List<Account> findAll() {
         return repository.findAllByOrderByCreatedAtAsc().stream()
                 .map(this::toDomain)
