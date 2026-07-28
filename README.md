@@ -21,7 +21,15 @@ components directly, install Java 21 and Node.js 22.
 ## Run the complete stack
 
 ```bash
-docker compose up --build
+./start.sh
+```
+
+The script runs from the repository root, checks that Docker Compose is
+available, and then executes `docker compose up --build`. Pass `-d` to start in
+detached mode:
+
+```bash
+./start.sh -d
 ```
 
 Once all containers are healthy, open:
