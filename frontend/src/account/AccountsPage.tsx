@@ -9,6 +9,7 @@ import {
   type Account,
   type Position,
 } from '../api'
+import { formatDecimal, formatMoney } from '../format'
 import './AccountsPage.css'
 
 const emptyForm = { name: '', broker: '', accountNumberLast4: '' }
@@ -26,6 +27,7 @@ function AccountsPage() {
   const [positions, setPositions] = useState<Position[]>([])
   const [positionsLoading, setPositionsLoading] = useState(false)
   const [positionsError, setPositionsError] = useState('')
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
 
   async function load(signal?: AbortSignal) {
     setLoading(true)
@@ -115,6 +117,7 @@ function AccountsPage() {
   }
 
   async function deactivate(account: Account) {
+    setDeactivatingId(account.id)
     setMessage('')
     setServerError('')
     try {
@@ -127,6 +130,8 @@ function AccountsPage() {
           ? error.message
           : 'The account request could not reach the backend.',
       )
+    } finally {
+      setDeactivatingId(null)
     }
   }
 
@@ -231,9 +236,14 @@ function AccountsPage() {
                   <button
                     type="button"
                     onClick={() => void deactivate(account)}
-                    disabled={account.status === 'INACTIVE'}
+                    disabled={
+                      account.status === 'INACTIVE' ||
+                      deactivatingId === account.id
+                    }
                   >
-                    Deactivate
+                    {deactivatingId === account.id
+                      ? 'Deactivating…'
+                      : 'Deactivate'}
                   </button>
                 </div>
               </article>
@@ -277,9 +287,9 @@ function AccountsPage() {
                       {positions.map((position) => (
                         <tr key={position.ticker}>
                           <td>{position.ticker}</td>
-                          <td>{position.quantity}</td>
-                          <td>{position.averageCost}</td>
-                          <td>{position.costBasis}</td>
+                          <td>{formatDecimal(position.quantity)}</td>
+                          <td>{formatMoney(position.averageCost)}</td>
+                          <td>{formatMoney(position.costBasis)}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -1,9 +1,11 @@
 package com.equitytrade.booking.trade.api;
 
 import com.equitytrade.booking.trade.application.TradePageView;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
+@Schema(name = "TradePageResponse", description = "Stable server-sorted trade page")
 public record TradePageResponse(
         List<TradeResponse> items,
         int page,

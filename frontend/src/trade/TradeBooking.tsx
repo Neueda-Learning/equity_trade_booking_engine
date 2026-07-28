@@ -14,6 +14,7 @@ import {
   type Account,
   type TradePage,
 } from '../api'
+import { formatDateTime, formatDecimal, formatMoney } from '../format'
 import './TradeBooking.css'
 
 const PAGE_SIZE = 20
@@ -297,13 +298,13 @@ function TradeBooking() {
                     <td>{accountNames.get(trade.accountId) ?? 'Unknown account'}</td>
                     <td className="ticker-cell">{trade.ticker}</td>
                     <td>{trade.side}</td>
-                    <td>{trade.quantity}</td>
-                    <td>{trade.tradePrice}</td>
-                    <td>{new Date(trade.executedAt).toLocaleString()}</td>
+                    <td>{formatDecimal(trade.quantity)}</td>
+                    <td>{formatMoney(trade.tradePrice)}</td>
+                    <td>{formatDateTime(trade.executedAt)}</td>
                     <td><span className="status-pill">{trade.status}</span></td>
                     <td>
                       {trade.cancelledAt
-                        ? new Date(trade.cancelledAt).toLocaleString()
+                        ? formatDateTime(trade.cancelledAt)
                         : '—'}
                     </td>
                     <td>

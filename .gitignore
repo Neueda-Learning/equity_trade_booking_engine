@@ -6,6 +6,8 @@ backend/.m2/
 # Node
 frontend/node_modules/
 frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
 .npm-cache/
 
 # Local environment and secrets

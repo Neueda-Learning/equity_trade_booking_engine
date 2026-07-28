@@ -59,6 +59,7 @@
 }
 
 .dashboard-status {
+  flex-wrap: wrap;
   margin: 4px 0 18px;
   color: var(--text-muted);
   font-size: 0.86rem;
@@ -109,7 +110,9 @@
 }
 
 .table-scroll {
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 
 .dashboard-panel table {

@@ -14,6 +14,11 @@ import {
   type MarketDataProviderStatus,
   type MarketQuote,
 } from '../api'
+import {
+  formatDateTime,
+  formatDecimal,
+  formatSignedDecimal,
+} from '../format'
 import './MarketData.css'
 
 function MarketData() {
@@ -252,20 +257,24 @@ function ProviderDisclosure({
   if (status.provider === 'MOCK') {
     return (
       <p className="provider-disclosure provider-disclosure--mock">
-        <strong>MOCK</strong> — generated locally; not live market data.
+        <strong>Source: MOCK</strong> — generated locally; not live market
+        data. Last successful update:{' '}
+        {status.lastSuccessAt
+          ? formatDateTime(status.lastSuccessAt)
+          : 'Not yet'}
       </p>
     )
   }
   return (
     <div className="provider-disclosure provider-disclosure--live">
-      <strong>FINNHUB</strong>
+      <strong>Source: FINNHUB</strong>
       <span>Live provider configured</span>
-      {status.lastSuccessAt && (
-        <span>
-          Last provider success{' '}
-          {new Date(status.lastSuccessAt).toLocaleString()}
-        </span>
-      )}
+      <span>
+        Last successful update:{' '}
+        {status.lastSuccessAt
+          ? formatDateTime(status.lastSuccessAt)
+          : 'Not yet'}
+      </span>
       {status.lastFailureCategory && (
         <span>Last failure: {friendlyCategory(status.lastFailureCategory)}</span>
       )}
@@ -338,14 +347,14 @@ function QuoteTable({
           {quotes.map((quote) => (
             <tr key={quote.ticker}>
               <td className="ticker-cell">{quote.ticker}</td>
-              <td>{formatNumber(quote.price)}</td>
-              <td>{formatNumber(quote.previousClose)}</td>
-              <td>{formatSigned(quote.change)}</td>
-              <td>{formatSigned(quote.changePercent)}%</td>
-              <td>{new Date(quote.marketTimestamp).toLocaleString()}</td>
+              <td>{formatDecimal(quote.price)}</td>
+              <td>{formatDecimal(quote.previousClose)}</td>
+              <td>{formatSignedDecimal(quote.change)}</td>
+              <td>{formatSignedDecimal(quote.changePercent)}%</td>
+              <td>{formatDateTime(quote.marketTimestamp)}</td>
               <td>
                 {quote.stale ? 'Last successful update ' : ''}
-                {new Date(quote.fetchedAt).toLocaleString()}
+                {formatDateTime(quote.fetchedAt)}
               </td>
               <td>
                 <div className="quote-labels">
@@ -398,14 +407,6 @@ function friendlyCategory(category: string) {
 
 function isAbort(reason: unknown) {
   return reason instanceof DOMException && reason.name === 'AbortError'
-}
-
-function formatNumber(value: number) {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 6 })
-}
-
-function formatSigned(value: number) {
-  return `${value > 0 ? '+' : ''}${formatNumber(value)}`
 }
 
 export default MarketData

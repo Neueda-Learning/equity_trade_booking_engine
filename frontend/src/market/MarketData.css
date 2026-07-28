@@ -47,6 +47,10 @@
   background: #ecfdf5;
 }
 
+.provider-disclosure strong {
+  white-space: nowrap;
+}
+
 .demo-controls {
   display: flex;
   align-items: center;
@@ -113,5 +117,9 @@
   .market-search input {
     width: 100%;
     min-width: 0;
+  }
+
+  .provider-disclosure--live {
+    display: grid;
   }
 }
