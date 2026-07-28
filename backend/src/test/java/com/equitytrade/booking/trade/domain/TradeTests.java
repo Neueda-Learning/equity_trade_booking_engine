@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -11,10 +12,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TradeTests {
 
     private static final Instant NOW = Instant.parse("2026-07-28T06:30:00Z");
+    private static final UUID ACCOUNT_ID =
+            UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Test
     void normalizesTickerAndBooksBuyTrade() {
         Trade trade = Trade.book(
+                ACCOUNT_ID,
                 " aapl ",
                 TradeSide.BUY,
                 new BigDecimal("10.5"),
@@ -23,6 +27,7 @@ class TradeTests {
                 NOW);
 
         assertThat(trade.ticker()).isEqualTo("AAPL");
+        assertThat(trade.accountId()).isEqualTo(ACCOUNT_ID);
         assertThat(trade.side()).isEqualTo(TradeSide.BUY);
         assertThat(trade.status()).isEqualTo(TradeStatus.BOOKED);
         assertThat(trade.createdAt()).isEqualTo(NOW);
@@ -32,6 +37,7 @@ class TradeTests {
     @Test
     void rejectsSellTradeWithSideViolation() {
         assertThatThrownBy(() -> Trade.book(
+                ACCOUNT_ID,
                 "AAPL",
                 TradeSide.SELL,
                 BigDecimal.ONE,
@@ -49,6 +55,7 @@ class TradeTests {
     @Test
     void rejectsInvalidTickerAndAmounts() {
         assertThatThrownBy(() -> Trade.book(
+                ACCOUNT_ID,
                 "bad ticker!",
                 TradeSide.BUY,
                 new BigDecimal("0"),
@@ -68,6 +75,7 @@ class TradeTests {
     @Test
     void allowsSixtySecondClockSkewButRejectsAnythingLater() {
         Trade accepted = Trade.book(
+                ACCOUNT_ID,
                 "BRK.B",
                 TradeSide.BUY,
                 BigDecimal.ONE,
@@ -78,6 +86,7 @@ class TradeTests {
         assertThat(accepted.executedAt()).isEqualTo(NOW.plusSeconds(60));
 
         assertThatThrownBy(() -> Trade.book(
+                ACCOUNT_ID,
                 "BRK.B",
                 TradeSide.BUY,
                 BigDecimal.ONE,
@@ -97,6 +106,7 @@ class TradeTests {
         Instant createdAt = Instant.parse("2026-07-28T06:30:00.987654321Z");
 
         Trade trade = Trade.book(
+                ACCOUNT_ID,
                 "AAPL",
                 TradeSide.BUY,
                 BigDecimal.ONE,

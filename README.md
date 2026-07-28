@@ -4,10 +4,10 @@
 
 # Equity Trade Booking Engine
 
-This repository contains a modular monolith with a runnable Walking Skeleton
-and its second agile increment: **BUY Trade Booking**. A user can book a BUY
-trade in React, persist it through Spring Boot and MySQL, and review the
-paginated booking ledger.
+This repository contains a modular monolith for account-scoped **BUY Trade
+Booking**. A user can manage multiple securities accounts, book a BUY trade
+against an active account, persist it through Spring Boot and MySQL, and review
+the filtered, paginated Activity ledger.
 
 ## Technology stack
 
@@ -60,6 +60,13 @@ cd backend
 ./mvnw test
 ```
 
+The integration profile runs the same application against a MySQL 8.4
+Testcontainer and requires Docker:
+
+```bash
+./mvnw verify -Pintegration
+```
+
 Frontend tests and build:
 
 ```bash
@@ -96,14 +103,32 @@ The values in `.env.example` are safe examples for local development only.
 They must never be reused in production; use independently generated secrets
 and your deployment platform's secret management.
 
-## BUY Trade Booking API
+## Accounts and Activity API
 
-Create a BUY trade:
+The V3 migration creates an active `Primary Account` and assigns all existing
+trades to it. Create additional accounts with:
+
+```bash
+curl -X POST http://localhost:8080/api/accounts \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "Long-term Portfolio",
+    "broker": "Example Broker",
+    "accountNumberLast4": "1234"
+  }'
+```
+
+Accounts can be listed at `GET /api/accounts`, retrieved at
+`GET /api/accounts/{id}`, edited with `PATCH /api/accounts/{id}`, and
+idempotently deactivated with `POST /api/accounts/{id}/deactivate`.
+
+Create a BUY trade using an active account UUID:
 
 ```bash
 curl -X POST http://localhost:8080/api/trades \
   -H 'Content-Type: application/json' \
   -d '{
+    "accountId": "00000000-0000-0000-0000-000000000001",
     "ticker": "aapl",
     "side": "BUY",
     "quantity": 10.5,
@@ -112,22 +137,24 @@ curl -X POST http://localhost:8080/api/trades \
   }'
 ```
 
-List trades in descending execution-time order:
+List all trades, or filter by account, in descending execution-time order:
 
 ```bash
 curl 'http://localhost:8080/api/trades?page=0&size=10'
+curl 'http://localhost:8080/api/trades?accountId=00000000-0000-0000-0000-000000000001&page=0&size=10'
 ```
 
-Ticker normalization and all business validation happen on the backend.
-`executedAt` is submitted as UTC, while the browser form accepts an editable
-local date and time. Pagination is zero-based and supports page sizes from 1
-through 100.
+Ticker normalization, account state checks, and all business validation happen
+on the backend. `executedAt` is submitted as UTC, while the browser form accepts
+an editable local date and time. Pagination is zero-based and supports page
+sizes from 1 through 100.
 
 ## Current scope
 
 This increment accepts BUY trades only. SELL requests are rejected and are
-never persisted. It deliberately contains no trade cancellation or deletion,
-trade-details endpoint, Position, average cost, P&L, Market Data integration or
-cache, ticker market verification, user management, idempotency, Swagger,
-Redis, messaging, or charts. Database schema changes are managed by Flyway;
-Hibernate only validates the schema.
+never persisted. Accounts are deactivated rather than deleted, and inactive
+accounts remain queryable but cannot accept new trades. It deliberately
+contains no trade cancellation or deletion, trade-details endpoint, Position,
+average cost, P&L, Market Data integration or cache, ticker market verification,
+user management, idempotency, Swagger, Redis, messaging, or charts. Database
+schema changes are managed by Flyway; Hibernate only validates the schema.

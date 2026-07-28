@@ -1,32 +1,21 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
+import {
+  ApiProblemError,
+  createTrade,
+  getAccounts,
+  getTrades,
+  type Account,
+  type TradePage,
+} from '../api'
 import './TradeBooking.css'
 
-interface Trade {
-  id: string
-  ticker: string
-  side: 'BUY'
-  quantity: number
-  tradePrice: number
-  executedAt: string
-  status: 'BOOKED'
-  createdAt: string
-}
-
-interface TradePage {
-  items: Trade[]
-  page: number
-  size: number
-  totalElements: number
-  totalPages: number
-}
-
-interface ProblemDetails {
-  title?: string
-  detail?: string
-  errors?: Record<string, string>
-}
-
-const PAGE_SIZE = 10
+const PAGE_SIZE = 20
 
 function currentLocalDateTime() {
   const now = new Date()
@@ -34,15 +23,10 @@ function currentLocalDateTime() {
   return local.toISOString().slice(0, 16)
 }
 
-function formatApiError(error: ProblemDetails) {
-  return (
-    error.detail ??
-    error.title ??
-    'The trade request could not be completed.'
-  )
-}
-
 function TradeBooking() {
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [accountId, setAccountId] = useState('')
+  const [filterAccountId, setFilterAccountId] = useState('')
   const [ticker, setTicker] = useState('')
   const [quantity, setQuantity] = useState('')
   const [tradePrice, setTradePrice] = useState('')
@@ -50,221 +34,168 @@ function TradeBooking() {
   const [page, setPage] = useState(0)
   const [refreshVersion, setRefreshVersion] = useState(0)
   const [tradePage, setTradePage] = useState<TradePage | null>(null)
+  const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitMessage, setSubmitMessage] = useState('')
-  const [submitError, setSubmitError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [serverError, setServerError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  const activeAccounts = useMemo(
+    () => accounts.filter((account) => account.status === 'ACTIVE'),
+    [accounts],
+  )
+  const accountNames = useMemo(
+    () => new Map(accounts.map((account) => [account.id, account.name])),
+    [accounts],
+  )
 
   useEffect(() => {
     const controller = new AbortController()
-
-    async function loadTrades() {
-      setIsLoading(true)
-      setListError('')
-      try {
-        const response = await fetch(
-          `/api/trades?page=${page}&size=${PAGE_SIZE}`,
-          { signal: controller.signal },
-        )
-        if (!response.ok) {
-          throw new Error('Trade history is unavailable.')
-        }
-        setTradePage((await response.json()) as TradePage)
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === 'AbortError')) {
-          setListError(
-            error instanceof Error
-              ? error.message
-              : 'Trade history is unavailable.',
-          )
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    void loadTrades()
-    return () => controller.abort()
-  }, [page, refreshVersion])
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setIsSubmitting(true)
-    setSubmitError('')
-    setSubmitMessage('')
-    setFieldErrors({})
-
-    try {
-      const body = `{
-        "ticker": ${JSON.stringify(ticker)},
-        "side": "BUY",
-        "quantity": ${quantity},
-        "tradePrice": ${tradePrice},
-        "executedAt": ${JSON.stringify(new Date(executedAt).toISOString())}
-      }`
-      const response = await fetch('/api/trades', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
+    getAccounts(controller.signal)
+      .then((loaded) => {
+        setAccounts(loaded)
+        const firstActive = loaded.find((account) => account.status === 'ACTIVE')
+        setAccountId((current) => current || firstActive?.id || '')
       })
-      const payload = (await response.json()) as Trade | ProblemDetails
-      if (!response.ok) {
-        const problem = payload as ProblemDetails
-        const errors = problem.errors ?? {}
-        setFieldErrors(errors)
-        if (Object.keys(errors).length === 0) {
-          setSubmitError(formatApiError(problem))
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setServerError('Accounts are unavailable.')
         }
-        return
-      }
+      })
+    return () => controller.abort()
+  }, [refreshVersion])
 
-      const booked = payload as Trade
-      setSubmitMessage(`${booked.ticker} BUY trade booked successfully.`)
+  useEffect(() => {
+    const controller = new AbortController()
+    getTrades(
+      page,
+      PAGE_SIZE,
+      filterAccountId || undefined,
+      controller.signal,
+    )
+      .then(setTradePage)
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setListError('Trade history is unavailable.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
+  }, [page, filterAccountId, refreshVersion])
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setMessage('')
+    setServerError('')
+    setFieldErrors({})
+    try {
+      const trade = await createTrade({
+        accountId,
+        ticker,
+        side: 'BUY',
+        quantity: Number(quantity),
+        tradePrice: Number(tradePrice),
+        executedAt: new Date(executedAt).toISOString(),
+      })
+      setMessage(`${trade.ticker} BUY trade booked successfully.`)
       setTicker('')
       setQuantity('')
       setTradePrice('')
       setExecutedAt(currentLocalDateTime())
       setPage(0)
+      setLoading(true)
       setRefreshVersion((version) => version + 1)
-    } catch {
-      setSubmitError('The trade request could not reach the backend.')
+    } catch (error) {
+      if (error instanceof ApiProblemError) {
+        setFieldErrors(error.problem.errors ?? {})
+        if (!error.problem.errors) setServerError(error.message)
+      } else {
+        setServerError('The trade request could not reach the backend.')
+      }
     } finally {
-      setIsSubmitting(false)
+      setSaving(false)
     }
   }
 
   return (
-    <section className="trade-workspace" aria-labelledby="trade-heading">
+    <section className="trade-workspace" aria-labelledby="activity-heading">
       <div className="booking-panel">
-        <p className="section-kicker">New booking</p>
-        <h2 id="trade-heading">Book a BUY trade</h2>
-        <p className="section-copy">
-          Prices are recorded in USD. Tickers are normalized by the backend.
-        </p>
-
-        <form className="trade-form" onSubmit={handleSubmit}>
-          <label>
-            Ticker
-            <input
+        <p className="section-kicker">New activity</p>
+        <h2 id="activity-heading">Book a BUY trade</h2>
+        {activeAccounts.length === 0 ? (
+          <p className="table-state">
+            No active accounts. Create an account before booking a trade.
+          </p>
+        ) : (
+          <form className="trade-form" onSubmit={submit}>
+            <TradeSelect
+              label="Account"
+              name="accountId"
+              value={accountId}
+              error={fieldErrors.accountId}
+              onChange={setAccountId}
+            >
+              {activeAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </TradeSelect>
+            <TradeInput
+              label="Ticker"
               name="ticker"
               value={ticker}
-              onChange={(event) => setTicker(event.target.value)}
+              error={fieldErrors.ticker}
+              onChange={setTicker}
               maxLength={10}
-              pattern="[A-Za-z][A-Za-z0-9.-]{0,9}"
-              placeholder="AAPL"
               required
-              aria-invalid={Boolean(fieldErrors.ticker)}
-              aria-describedby={
-                fieldErrors.ticker ? 'ticker-error' : undefined
-              }
             />
-            {fieldErrors.ticker && (
-              <span id="ticker-error" className="field-error" role="alert">
-                {fieldErrors.ticker}
-              </span>
-            )}
-          </label>
-
-          <label>
-            Side
-            <input
-              name="side"
-              value="BUY"
-              readOnly
-              aria-invalid={Boolean(fieldErrors.side)}
-              aria-describedby={fieldErrors.side ? 'side-error' : undefined}
-            />
-            {fieldErrors.side && (
-              <span id="side-error" className="field-error" role="alert">
-                {fieldErrors.side}
-              </span>
-            )}
-          </label>
-
-          <label>
-            Quantity
-            <input
+            <TradeInput
+              label="Quantity"
               name="quantity"
               type="number"
               value={quantity}
-              onChange={(event) => setQuantity(event.target.value)}
+              error={fieldErrors.quantity}
+              onChange={setQuantity}
               min="0.000001"
               step="0.000001"
-              placeholder="10.5"
               required
-              aria-invalid={Boolean(fieldErrors.quantity)}
-              aria-describedby={
-                fieldErrors.quantity ? 'quantity-error' : undefined
-              }
             />
-            {fieldErrors.quantity && (
-              <span id="quantity-error" className="field-error" role="alert">
-                {fieldErrors.quantity}
-              </span>
-            )}
-          </label>
-
-          <label>
-            Trade price (USD)
-            <input
+            <TradeInput
+              label="Trade price (USD)"
               name="tradePrice"
               type="number"
               value={tradePrice}
-              onChange={(event) => setTradePrice(event.target.value)}
+              error={fieldErrors.tradePrice}
+              onChange={setTradePrice}
               min="0.000001"
               step="0.000001"
-              placeholder="195.25"
               required
-              aria-invalid={Boolean(fieldErrors.tradePrice)}
-              aria-describedby={
-                fieldErrors.tradePrice ? 'trade-price-error' : undefined
-              }
             />
-            {fieldErrors.tradePrice && (
-              <span id="trade-price-error" className="field-error" role="alert">
-                {fieldErrors.tradePrice}
-              </span>
-            )}
-          </label>
-
-          <label className="field-wide">
-            Executed at
-            <input
+            <TradeInput
+              label="Executed at"
               name="executedAt"
               type="datetime-local"
               value={executedAt}
-              onChange={(event) => setExecutedAt(event.target.value)}
+              error={fieldErrors.executedAt}
+              onChange={setExecutedAt}
               step="1"
               required
-              aria-invalid={Boolean(fieldErrors.executedAt)}
-              aria-describedby={
-                fieldErrors.executedAt ? 'executed-at-error' : undefined
-              }
+              className="field-wide"
             />
-            {fieldErrors.executedAt && (
-              <span id="executed-at-error" className="field-error" role="alert">
-                {fieldErrors.executedAt}
-              </span>
-            )}
-          </label>
-
-          <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Booking…' : 'Book BUY trade'}
-          </button>
-        </form>
-
-        {submitMessage && (
-          <p className="form-message form-message--success" role="status">
-            {submitMessage}
-          </p>
+            <button type="submit" disabled={saving}>
+              {saving ? 'Booking…' : 'Book BUY trade'}
+            </button>
+          </form>
         )}
-        {submitError && (
+        {message && <p className="form-message form-message--success">{message}</p>}
+        {serverError && (
           <p className="form-message form-message--error" role="alert">
-            {submitError}
+            {serverError}
           </p>
         )}
       </div>
@@ -272,28 +203,41 @@ function TradeBooking() {
       <div className="ledger-panel">
         <div className="ledger-heading">
           <div>
-            <p className="section-kicker">Booking ledger</p>
-            <h2>Recent trades</h2>
+            <p className="section-kicker">Trade ledger</p>
+            <h2>Activity</h2>
           </div>
-          <span className="trade-count">
-            {tradePage?.totalElements ?? 0} booked
-          </span>
+          <label>
+            Account filter
+            <select
+              className="activity-select"
+              value={filterAccountId}
+              onChange={(event) => {
+                setFilterAccountId(event.target.value)
+                setPage(0)
+                setLoading(true)
+                setListError('')
+              }}
+            >
+              <option value="">All accounts</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-
-        {isLoading && <p className="table-state">Loading trades…</p>}
-        {listError && (
-          <p className="table-state table-state--error" role="alert">
-            {listError}
-          </p>
-        )}
-        {!isLoading && !listError && tradePage?.items.length === 0 && (
+        {loading && <p className="table-state">Loading trades…</p>}
+        {listError && <p className="table-state table-state--error">{listError}</p>}
+        {!loading && !listError && tradePage?.items.length === 0 && (
           <p className="table-state">No trades booked yet.</p>
         )}
-        {!isLoading && !listError && tradePage && tradePage.items.length > 0 && (
+        {!loading && !listError && tradePage && tradePage.items.length > 0 && (
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
+                  <th>Account</th>
                   <th>Ticker</th>
                   <th>Side</th>
                   <th>Quantity</th>
@@ -305,36 +249,38 @@ function TradeBooking() {
               <tbody>
                 {tradePage.items.map((trade) => (
                   <tr key={trade.id}>
+                    <td>{accountNames.get(trade.accountId) ?? 'Unknown account'}</td>
                     <td className="ticker-cell">{trade.ticker}</td>
                     <td>{trade.side}</td>
                     <td>{trade.quantity}</td>
                     <td>{trade.tradePrice}</td>
                     <td>{new Date(trade.executedAt).toLocaleString()}</td>
-                    <td>
-                      <span className="status-pill">{trade.status}</span>
-                    </td>
+                    <td><span className="status-pill">{trade.status}</span></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-
         {tradePage && tradePage.totalPages > 1 && (
           <nav className="pagination" aria-label="Trade pages">
             <button
               type="button"
-              onClick={() => setPage((current) => current - 1)}
+              onClick={() => {
+                setLoading(true)
+                setPage((current) => current - 1)
+              }}
               disabled={page === 0}
             >
               Previous
             </button>
-            <span>
-              Page {page + 1} of {tradePage.totalPages}
-            </span>
+            <span>Page {page + 1} of {tradePage.totalPages}</span>
             <button
               type="button"
-              onClick={() => setPage((current) => current + 1)}
+              onClick={() => {
+                setLoading(true)
+                setPage((current) => current + 1)
+              }}
               disabled={page + 1 >= tradePage.totalPages}
             >
               Next
@@ -343,6 +289,74 @@ function TradeBooking() {
         )}
       </div>
     </section>
+  )
+}
+
+function TradeInput({
+  label,
+  name,
+  value,
+  error,
+  onChange,
+  className,
+  ...props
+}: {
+  label: string
+  name: string
+  value: string
+  error?: string
+  onChange: (value: string) => void
+  className?: string
+  type?: string
+  min?: string
+  step?: string
+  maxLength?: number
+  required?: boolean
+}) {
+  return (
+    <label className={className}>
+      {label}
+      <input
+        {...props}
+        name={name}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${name}-error` : undefined}
+      />
+      {error && <span id={`${name}-error`} className="field-error">{error}</span>}
+    </label>
+  )
+}
+
+function TradeSelect({
+  label,
+  name,
+  value,
+  error,
+  onChange,
+  children,
+}: {
+  label: string
+  name: string
+  value: string
+  error?: string
+  onChange: (value: string) => void
+  children: ReactNode
+}) {
+  return (
+    <label>
+      {label}
+      <select
+        name={name}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-invalid={Boolean(error)}
+      >
+        {children}
+      </select>
+      {error && <span className="field-error">{error}</span>}
+    </label>
   )
 }
 

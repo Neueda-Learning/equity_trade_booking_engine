@@ -116,10 +116,26 @@ wait_for_health "$BACKEND_URL/api/health"
 wait_for_health "$FRONTEND_URL/api/health"
 curl --fail --silent --show-error --output /dev/null "$FRONTEND_URL/"
 
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/accounts" \
+  >"$LOG_DIR/accounts.json"
+readonly ACCOUNT_ID="$(jq --raw-output \
+  'map(select(.status == "ACTIVE")) | first | .id // empty' \
+  "$LOG_DIR/accounts.json")"
+if [[ -z "$ACCOUNT_ID" ]]; then
+  echo "No ACTIVE account is available for the smoke trade." >&2
+  exit 1
+fi
+jq --exit-status --arg accountId "$ACCOUNT_ID" \
+  'any(.[]; .id == $accountId and .baseCurrency == "USD")' \
+  "$LOG_DIR/accounts.json" >/dev/null
+
 readonly EXECUTED_AT="$(date -u -d '5 seconds ago' +%Y-%m-%dT%H:%M:%SZ)"
 jq --null-input \
+  --arg accountId "$ACCOUNT_ID" \
   --arg executedAt "$EXECUTED_AT" \
   '{
+    accountId: $accountId,
     ticker: " audit ",
     side: "BUY",
     quantity: 1.250000,
@@ -135,19 +151,22 @@ buy_metadata="$(curl --silent --show-error \
   --data-binary "@$LOG_DIR/buy-request.json" \
   "$BACKEND_URL/api/trades")"
 assert_response 201 application/json "$buy_metadata"
-jq --exit-status '
+jq --exit-status --arg accountId "$ACCOUNT_ID" '
   (.id | test("^[0-9a-f-]{36}$")) and
+  .accountId == $accountId and
   .ticker == "AUDIT" and
   .side == "BUY" and
-  .status == "BOOKED"
+  .status == "BOOKED" and
+  .quantity == 1.25 and
+  .tradePrice == 42.125
 ' "$LOG_DIR/buy-response.json" >/dev/null
 readonly TRADE_ID="$(jq --raw-output '.id' "$LOG_DIR/buy-response.json")"
 
 curl --fail --silent --show-error \
-  "$BACKEND_URL/api/trades?page=0&size=10" \
+  "$BACKEND_URL/api/trades?accountId=$ACCOUNT_ID&page=0&size=10" \
   >"$LOG_DIR/trades-before-restart.json"
-jq --exit-status --arg id "$TRADE_ID" \
-  'any(.items[]; .id == $id)' \
+jq --exit-status --arg id "$TRADE_ID" --arg accountId "$ACCOUNT_ID" \
+  'any(.items[]; .id == $id and .accountId == $accountId)' \
   "$LOG_DIR/trades-before-restart.json" >/dev/null
 
 compose restart backend
@@ -155,16 +174,18 @@ BACKEND_HOST_PORT="$(published_port backend 8080)"
 BACKEND_URL="http://127.0.0.1:${BACKEND_HOST_PORT}"
 wait_for_health "$BACKEND_URL/api/health"
 curl --fail --silent --show-error \
-  "$BACKEND_URL/api/trades?page=0&size=10" \
+  "$BACKEND_URL/api/trades?accountId=$ACCOUNT_ID&page=0&size=10" \
   >"$LOG_DIR/trades-after-restart.json"
-jq --exit-status --arg id "$TRADE_ID" \
-  'any(.items[]; .id == $id)' \
+jq --exit-status --arg id "$TRADE_ID" --arg accountId "$ACCOUNT_ID" \
+  'any(.items[]; .id == $id and .accountId == $accountId)' \
   "$LOG_DIR/trades-after-restart.json" >/dev/null
 readonly VALID_TOTAL="$(jq '.totalElements' "$LOG_DIR/trades-after-restart.json")"
 
 jq --null-input \
+  --arg accountId "$ACCOUNT_ID" \
   --arg executedAt "$EXECUTED_AT" \
   '{
+    accountId: $accountId,
     ticker: "AAPL",
     side: "SELL",
     quantity: 1,
@@ -184,8 +205,10 @@ jq --exit-status \
   "$LOG_DIR/sell-response.json" >/dev/null
 
 jq --null-input \
+  --arg accountId "$ACCOUNT_ID" \
   --arg executedAt "$EXECUTED_AT" \
   '{
+    accountId: $accountId,
     ticker: "AAPL",
     side: "BUY",
     quantity: 1.0000001,
@@ -205,10 +228,10 @@ jq --exit-status \
   "$LOG_DIR/precision-response.json" >/dev/null
 
 curl --fail --silent --show-error \
-  "$BACKEND_URL/api/trades?page=0&size=10" \
+  "$BACKEND_URL/api/trades?accountId=$ACCOUNT_ID&page=0&size=10" \
   >"$LOG_DIR/trades-after-invalid.json"
 jq --exit-status --argjson expected "$VALID_TOTAL" \
   '.totalElements == $expected' \
   "$LOG_DIR/trades-after-invalid.json" >/dev/null
 
-echo "Compose smoke passed for trade $TRADE_ID."
+echo "Compose smoke passed for account $ACCOUNT_ID and trade $TRADE_ID."

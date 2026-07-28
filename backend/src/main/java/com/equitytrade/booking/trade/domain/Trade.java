@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 
 public record Trade(
         UUID id,
+        UUID accountId,
         String ticker,
         TradeSide side,
         BigDecimal quantity,
@@ -27,6 +28,7 @@ public record Trade(
 
     public Trade {
         Objects.requireNonNull(id);
+        Objects.requireNonNull(accountId);
         Objects.requireNonNull(ticker);
         Objects.requireNonNull(side);
         Objects.requireNonNull(quantity);
@@ -37,6 +39,7 @@ public record Trade(
     }
 
     public static Trade book(
+            UUID accountId,
             String rawTicker,
             TradeSide side,
             BigDecimal quantity,
@@ -44,6 +47,9 @@ public record Trade(
             Instant executedAt,
             Instant now) {
         List<TradeFieldViolation> violations = new ArrayList<>();
+        if (accountId == null) {
+            violations.add(new TradeFieldViolation("accountId", "is required"));
+        }
         String ticker = normalizeTicker(rawTicker, violations);
 
         if (side == null) {
@@ -70,6 +76,7 @@ public record Trade(
 
         return new Trade(
                 UUID.randomUUID(),
+                accountId,
                 ticker,
                 side,
                 quantity,

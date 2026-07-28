@@ -36,6 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TradeApiIntegrationTests {
 
     private static final Instant NOW = Instant.parse("2026-07-28T06:30:30Z");
+    private static final String PRIMARY_ACCOUNT_ID =
+            "00000000-0000-0000-0000-000000000001";
 
     @Autowired
     private MockMvc mockMvc;
@@ -46,6 +48,7 @@ class TradeApiIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "accountId": "00000000-0000-0000-0000-000000000001",
                                   "ticker": " aapl ",
                                   "side": "BUY",
                                   "quantity": 10.5,
@@ -58,6 +61,7 @@ class TradeApiIntegrationTests {
                         "Location",
                         matchesPattern("/api/trades/[0-9a-f-]{36}")))
                 .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.accountId").value(PRIMARY_ACCOUNT_ID))
                 .andExpect(jsonPath("$.ticker").value("AAPL"))
                 .andExpect(jsonPath("$.side").value("BUY"))
                 .andExpect(jsonPath("$.quantity").value(10.5))
@@ -100,6 +104,7 @@ class TradeApiIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "accountId": "00000000-0000-0000-0000-000000000001",
                                   "ticker": "bad ticker!",
                                   "side": "BUY",
                                   "quantity": 0,
@@ -126,6 +131,7 @@ class TradeApiIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "accountId": "00000000-0000-0000-0000-000000000001",
                                   "ticker": "AAPL",
                                   "side": "BUY",
                                   "quantity": 1.0000001,
@@ -177,26 +183,29 @@ class TradeApiIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "accountId": "%s",
                                   "ticker": "%s",
                                   "side": "BUY",
                                   "quantity": 1,
                                   "tradePrice": 10,
                                   "executedAt": "%s"
                                 }
-                                """.formatted(ticker, executedAt)))
+                                """.formatted(
+                                PRIMARY_ACCOUNT_ID, ticker, executedAt)))
                 .andExpect(status().isCreated());
     }
 
     private String validRequest(String side, String executedAt) {
         return """
                 {
+                  "accountId": "%s",
                   "ticker": "AAPL",
                   "side": "%s",
                   "quantity": 1,
                   "tradePrice": 10,
                   "executedAt": "%s"
                 }
-                """.formatted(side, executedAt);
+                """.formatted(PRIMARY_ACCOUNT_ID, side, executedAt);
     }
 
     private void expectValidationProblem(

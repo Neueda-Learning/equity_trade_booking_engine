@@ -20,6 +20,10 @@ class TradeJpaEntity {
     @Column(name = "id", nullable = false, length = 36, columnDefinition = "char(36)")
     private String id;
 
+    @Column(name = "account_id", nullable = false, length = 36,
+            columnDefinition = "char(36)")
+    private String accountId;
+
     @Column(name = "ticker", nullable = false, length = 10)
     private String ticker;
 
@@ -48,6 +52,7 @@ class TradeJpaEntity {
 
     TradeJpaEntity(
             String id,
+            String accountId,
             String ticker,
             TradeSide side,
             BigDecimal quantity,
@@ -56,6 +61,7 @@ class TradeJpaEntity {
             TradeStatus status,
             LocalDateTime createdAt) {
         this.id = id;
+        this.accountId = accountId;
         this.ticker = ticker;
         this.side = side;
         this.quantity = quantity;
@@ -67,6 +73,10 @@ class TradeJpaEntity {
 
     String getId() {
         return id;
+    }
+
+    String getAccountId() {
+        return accountId;
     }
 
     String getTicker() {

@@ -26,12 +26,14 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
     }
 
     @Override
-    public TradePage findAll(int page, int size) {
+    public TradePage findAll(UUID accountId, int page, int size) {
         Sort sort = Sort.by(Sort.Direction.DESC, "executedAt")
                 .and(Sort.by(Sort.Direction.DESC, "createdAt"))
                 .and(Sort.by(Sort.Direction.DESC, "id"));
-        Page<TradeJpaEntity> result =
-                repository.findAll(PageRequest.of(page, size, sort));
+        PageRequest pageRequest = PageRequest.of(page, size, sort);
+        Page<TradeJpaEntity> result = accountId == null
+                ? repository.findAll(pageRequest)
+                : repository.findByAccountId(accountId.toString(), pageRequest);
         return new TradePage(
                 result.getContent().stream().map(this::toDomain).toList(),
                 result.getNumber(),
@@ -43,6 +45,7 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
     private TradeJpaEntity toEntity(Trade trade) {
         return new TradeJpaEntity(
                 trade.id().toString(),
+                trade.accountId().toString(),
                 trade.ticker(),
                 trade.side(),
                 trade.quantity(),
@@ -55,6 +58,7 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
     private Trade toDomain(TradeJpaEntity entity) {
         return new Trade(
                 UUID.fromString(entity.getId()),
+                UUID.fromString(entity.getAccountId()),
                 entity.getTicker(),
                 entity.getSide(),
                 entity.getQuantity(),

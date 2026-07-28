@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/trades")
@@ -27,6 +28,7 @@ public class TradeController {
     public ResponseEntity<TradeResponse> create(
             @RequestBody CreateTradeRequest request) {
         TradeView trade = tradeApplicationService.book(new BookTradeCommand(
+                request.accountId(),
                 request.ticker(),
                 request.side(),
                 request.quantity(),
@@ -40,8 +42,10 @@ public class TradeController {
 
     @GetMapping
     public TradePageResponse list(
+            @RequestParam(required = false) UUID accountId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return TradePageResponse.from(tradeApplicationService.list(page, size));
+        return TradePageResponse.from(
+                tradeApplicationService.list(accountId, page, size));
     }
 }
