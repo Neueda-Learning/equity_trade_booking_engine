@@ -32,6 +32,7 @@ export BACKEND_PORT=0
 export FRONTEND_PORT=0
 export MYSQL_HOST_PORT=0
 export REDIS_HOST_PORT=0
+export DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED=false
 export BACKEND_IMAGE="${PROJECT_NAME}-backend:smoke"
 export FRONTEND_IMAGE="${PROJECT_NAME}-frontend:smoke"
 
@@ -156,19 +157,26 @@ wait_for_health "$BACKEND_URL/api/health"
 wait_for_health "$FRONTEND_URL/api/health"
 curl --fail --silent --show-error --output /dev/null "$FRONTEND_URL/"
 
-curl --fail --silent --show-error \
-  "$BACKEND_URL/api/accounts" \
-  >"$LOG_DIR/accounts.json"
-readonly ACCOUNT_ID="$(jq --raw-output \
-  'map(select(.status == "ACTIVE")) | first | .id // empty' \
-  "$LOG_DIR/accounts.json")"
-if [[ -z "$ACCOUNT_ID" ]]; then
-  echo "No ACTIVE account is available for the smoke trade." >&2
-  exit 1
-fi
+jq --null-input \
+  --arg name "CI $PROJECT_NAME" \
+  '{
+    name: $name,
+    broker: "CI Broker",
+    accountNumberLast4: "4242"
+  }' >"$LOG_DIR/account-request.json"
+account_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/account-response.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data-binary "@$LOG_DIR/account-request.json" \
+  "$BACKEND_URL/api/accounts")"
+assert_response 201 application/json "$account_metadata"
+readonly ACCOUNT_ID="$(jq --raw-output '.id // empty' \
+  "$LOG_DIR/account-response.json")"
 jq --exit-status --arg accountId "$ACCOUNT_ID" \
-  'any(.[]; .id == $accountId and .baseCurrency == "USD")' \
-  "$LOG_DIR/accounts.json" >/dev/null
+  '.id == $accountId and .status == "ACTIVE" and .baseCurrency == "USD"' \
+  "$LOG_DIR/account-response.json" >/dev/null
 
 readonly BUY_EXECUTED_AT="$(date -u -d '10 seconds ago' +%Y-%m-%dT%H:%M:%SZ)"
 readonly SELL_EXECUTED_AT="$(date -u -d '5 seconds ago' +%Y-%m-%dT%H:%M:%SZ)"
@@ -180,7 +188,7 @@ jq --null-input \
     ticker: " audit ",
     side: "BUY",
     quantity: 10.000000,
-    tradePrice: 42.125000,
+    tradePrice: 100.000000,
     executedAt: $executedAt
   }' >"$LOG_DIR/buy-request.json"
 
@@ -199,7 +207,7 @@ jq --exit-status --arg accountId "$ACCOUNT_ID" '
   .side == "BUY" and
   .status == "BOOKED" and
   .quantity == 10 and
-  .tradePrice == 42.125
+  .tradePrice == 100
 ' "$LOG_DIR/buy-response.json" >/dev/null
 readonly BUY_ID="$(jq --raw-output '.id' "$LOG_DIR/buy-response.json")"
 
@@ -253,6 +261,69 @@ jq --exit-status '
   .[0].ticker == "AUDIT" and
   .[0].source == "MOCK"
 ' "$LOG_DIR/account-quotes.json" >/dev/null
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/pnl?accountId=$ACCOUNT_ID" \
+  >"$LOG_DIR/pnl.json"
+readonly QUOTE_PRICE="$(jq '.price' "$LOG_DIR/quote-first.json")"
+jq --exit-status --argjson price "$QUOTE_PRICE" '
+  def close($actual; $expected):
+    (($actual - $expected) | fabs) < 0.00001;
+  (.items | length) == 1 and
+  .items[0].ticker == "AUDIT" and
+  .items[0].quantity == 10 and
+  .items[0].costBasis == 1000 and
+  close(.items[0].marketValue; 10 * $price) and
+  close(.items[0].unrealizedPnl; (10 * $price) - 1000) and
+  close(
+    .items[0].pnlPercent;
+    (((10 * $price) - 1000) / 1000) * 100
+  ) and
+  .totals.complete == true and
+  .totals.unpricedPositionCount == 0
+' "$LOG_DIR/pnl.json" >/dev/null
+
+for refresh_number in 1 2; do
+  dashboard_metadata="$(curl --silent --show-error \
+    --output "$LOG_DIR/dashboard-refresh-${refresh_number}.json" \
+    --write-out '%{http_code}|%{content_type}' \
+    --request POST \
+    "$BACKEND_URL/api/dashboard/refresh")"
+  assert_response 200 application/json "$dashboard_metadata"
+  jq --exit-status '
+    .totals.positionCount >= 1 and
+    .totals.pricedPositionCount >= 1 and
+    (.positions | any(.ticker == "AUDIT" and .available == true))
+  ' "$LOG_DIR/dashboard-refresh-${refresh_number}.json" >/dev/null
+done
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/dashboard/history?range=ALL" \
+  >"$LOG_DIR/history-all.json"
+jq --exit-status '
+  (.items | length) >= 2 and
+  ([.items[].capturedAt] == ([.items[].capturedAt] | sort)) and
+  all(.items[]; .scopeType == "ALL" and .accountId == null)
+' "$LOG_DIR/history-all.json" >/dev/null
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/dashboard/history?accountId=$ACCOUNT_ID&range=ALL" \
+  >"$LOG_DIR/history-account.json"
+jq --exit-status --arg accountId "$ACCOUNT_ID" '
+  (.items | length) >= 2 and
+  ([.items[].capturedAt] == ([.items[].capturedAt] | sort)) and
+  all(.items[];
+    .scopeType == "ACCOUNT" and .accountId == $accountId
+  )
+' "$LOG_DIR/history-account.json" >/dev/null
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/dashboard?accountId=$ACCOUNT_ID" \
+  >"$LOG_DIR/dashboard-account.json"
+jq --exit-status --arg accountId "$ACCOUNT_ID" '
+  .accountCount == 1 and
+  (.positions | all(.accountId == $accountId))
+' "$LOG_DIR/dashboard-account.json" >/dev/null
 
 jq --null-input \
   --arg accountId "$ACCOUNT_ID" \
@@ -359,6 +430,24 @@ jq --exit-status --arg buyId "$BUY_ID" --arg sellId "$SELL_ID" '
 ' "$LOG_DIR/trades-after-restart.json" >/dev/null
 readonly VALID_TOTAL="$(jq '.totalElements' "$LOG_DIR/trades-after-restart.json")"
 
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/dashboard/history?range=ALL" \
+  >"$LOG_DIR/history-after-restart.json"
+jq --exit-status '
+  (.items | length) >= 2 and
+  ([.items[].capturedAt] == ([.items[].capturedAt] | sort))
+' "$LOG_DIR/history-after-restart.json" >/dev/null
+
+compose exec -T redis redis-cli FLUSHDB >/dev/null
+[[ "$(compose exec -T redis redis-cli DBSIZE)" == "0" ]]
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/dashboard/history?accountId=$ACCOUNT_ID&range=ALL" \
+  >"$LOG_DIR/history-after-redis-flush.json"
+jq --exit-status --arg accountId "$ACCOUNT_ID" '
+  (.items | length) >= 2 and
+  all(.items[]; .accountId == $accountId)
+' "$LOG_DIR/history-after-redis-flush.json" >/dev/null
+
 jq --null-input \
   --arg accountId "$ACCOUNT_ID" \
   --arg executedAt "$SELL_EXECUTED_AT" \
@@ -389,4 +478,4 @@ jq --exit-status --argjson expected "$VALID_TOTAL" \
   '.totalElements == $expected' \
   "$LOG_DIR/trades-after-invalid.json" >/dev/null
 
-echo "Compose smoke passed for MySQL lifecycle and Redis-backed MOCK quote AUDIT."
+echo "Compose smoke passed for P&L, MySQL valuation history, Redis MOCK quotes, and trade lifecycle."

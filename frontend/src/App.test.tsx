@@ -12,7 +12,37 @@ describe('application navigation', () => {
         const url = String(input)
         if (url === '/api/health') return response({ status: 'UP' })
         if (url === '/api/accounts') return response([])
-        if (url === '/api/positions') return response([])
+        if (url.startsWith('/api/dashboard/history')) {
+          return response({ range: '30D', items: [] })
+        }
+        if (url === '/api/dashboard') {
+          return response({
+            totals: {
+              totalCostBasis: 0,
+              totalMarketValue: 0,
+              totalUnrealizedPnl: 0,
+              totalPnlPercent: null,
+              positionCount: 0,
+              pricedPositionCount: 0,
+              unpricedPositionCount: 0,
+              complete: true,
+              mock: false,
+              stale: false,
+            },
+            positions: [],
+            accountCount: 0,
+            activeAccountCount: 0,
+            recentActivity: [],
+            quoteStatus: {
+              available: 0,
+              unavailable: 0,
+              cached: 0,
+              stale: 0,
+              mock: 0,
+            },
+            capturedAt: '2026-07-28T09:00:00Z',
+          })
+        }
         return response({
           items: [],
           page: 0,

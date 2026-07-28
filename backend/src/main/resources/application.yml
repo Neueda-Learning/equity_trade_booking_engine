@@ -32,6 +32,12 @@ market-data:
   retention-ttl: ${MARKET_DATA_RETENTION_TTL:24h}
   mock-window: ${MARKET_DATA_MOCK_WINDOW:60s}
 
+dashboard:
+  snapshots:
+    scheduling-enabled: ${DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED:true}
+    interval: ${DASHBOARD_SNAPSHOT_INTERVAL:15m}
+    initial-delay: ${DASHBOARD_SNAPSHOT_INITIAL_DELAY:15m}
+
 management:
   endpoints:
     web:

@@ -71,6 +71,92 @@ export interface MarketQuoteList {
   items: MarketQuote[]
 }
 
+export interface PositionPnl {
+  accountId: string | null
+  ticker: string
+  quantity: number
+  averageCost: number
+  costBasis: number
+  marketPrice: number | null
+  marketValue: number | null
+  unrealizedPnl: number | null
+  pnlPercent: number | null
+  quoteAsOf: string | null
+  source: string | null
+  mock: boolean
+  cached: boolean
+  stale: boolean
+  available: boolean
+}
+
+export interface PnlTotals {
+  totalCostBasis: number
+  totalMarketValue: number
+  totalUnrealizedPnl: number
+  totalPnlPercent: number | null
+  positionCount: number
+  pricedPositionCount: number
+  unpricedPositionCount: number
+  complete: boolean
+  mock: boolean
+  stale: boolean
+}
+
+export interface PnlResponse {
+  items: PositionPnl[]
+  totals: PnlTotals
+}
+
+export interface DashboardActivity {
+  id: string
+  accountId: string
+  accountName: string
+  ticker: string
+  side: 'BUY' | 'SELL'
+  quantity: number
+  status: 'BOOKED' | 'CANCELLED'
+  executedAt: string
+  cancelledAt: string | null
+}
+
+export interface DashboardResponse {
+  totals: PnlTotals
+  positions: PositionPnl[]
+  accountCount: number
+  activeAccountCount: number
+  recentActivity: DashboardActivity[]
+  quoteStatus: {
+    available: number
+    unavailable: number
+    cached: number
+    stale: number
+    mock: number
+  }
+  capturedAt: string
+}
+
+export type HistoryRange = '1D' | '7D' | '30D' | 'ALL'
+
+export interface ValuationSnapshot {
+  id: string
+  scopeType: 'ALL' | 'ACCOUNT'
+  accountId: string | null
+  totalCostBasis: number
+  totalMarketValue: number
+  unrealizedPnl: number
+  positionCount: number
+  pricedPositionCount: number
+  complete: boolean
+  mock: boolean
+  stale: boolean
+  capturedAt: string
+}
+
+export interface ValuationHistory {
+  range: HistoryRange
+  items: ValuationSnapshot[]
+}
+
 export interface ProblemDetails {
   type?: string
   title?: string
@@ -197,4 +283,46 @@ export function refreshMarketQuote(ticker: string) {
     `/api/market-data/quotes/${encodeURIComponent(ticker)}/refresh`,
     { method: 'POST' },
   )
+}
+
+export function getPnl(accountId?: string, signal?: AbortSignal) {
+  return request<PnlResponse>(withAccount('/api/pnl', accountId), {
+    signal,
+  })
+}
+
+export function getDashboard(
+  accountId?: string,
+  signal?: AbortSignal,
+) {
+  return request<DashboardResponse>(
+    withAccount('/api/dashboard', accountId),
+    { signal },
+  )
+}
+
+export function refreshDashboard(accountId?: string) {
+  return request<DashboardResponse>(
+    withAccount('/api/dashboard/refresh', accountId),
+    { method: 'POST' },
+  )
+}
+
+export function getDashboardHistory(
+  range: HistoryRange,
+  accountId?: string,
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams({ range })
+  if (accountId) query.set('accountId', accountId)
+  return request<ValuationHistory>(
+    `/api/dashboard/history?${query}`,
+    { signal },
+  )
+}
+
+function withAccount(path: string, accountId?: string) {
+  return accountId
+    ? `${path}?${new URLSearchParams({ accountId })}`
+    : path
 }
