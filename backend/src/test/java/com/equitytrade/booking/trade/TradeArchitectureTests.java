@@ -49,4 +49,19 @@ class TradeArchitectureTests {
                             "..marketdata.api..",
                             "..marketdata.application..",
                             "..marketdata.infrastructure..");
+
+    @ArchTest
+    static final ArchRule pnl_domain_is_framework_independent =
+            noClasses()
+                    .that().resideInAPackage("..pnl.domain..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework..",
+                            "jakarta.persistence..",
+                            "com.fasterxml.jackson..",
+                            "io.lettuce..",
+                            "redis.clients..",
+                            "react..",
+                            "..pnl.api..",
+                            "..pnl.application..",
+                            "..pnl.infrastructure..");
 }

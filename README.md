@@ -9,6 +9,8 @@ management. A user can manage multiple securities accounts, book BUY and SELL
 trades against an active account, cancel eligible trades, review positions, and
 inspect the filtered, paginated Activity ledger. Position tickers can also be
 priced by an explicitly labelled deterministic mock provider backed by Redis.
+The Dashboard calculates unrealized P&L and persists valuation totals for
+historical charts.
 
 ## Technology stack
 
@@ -100,6 +102,10 @@ Compose reads:
 | `MARKET_DATA_PROVIDER` | `mock` | Selected quote provider |
 | `MARKET_DATA_FRESH_TTL` | `60s` | Duration before a quote is refreshed |
 | `MARKET_DATA_RETENTION_TTL` | `24h` | Redis stale-fallback retention |
+| `MARKET_DATA_MOCK_WINDOW` | `60s` | Deterministic mock price window |
+| `DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED` | `true` | Enable periodic valuation capture |
+| `DASHBOARD_SNAPSHOT_INTERVAL` | `15m` | Delay between scheduled captures |
+| `DASHBOARD_SNAPSHOT_INITIAL_DELAY` | `15m` | Delay before the first scheduled capture |
 
 When the backend runs outside Compose, `DB_URL` defaults to
 `jdbc:mysql://localhost:3307/equity_booking?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC`.
@@ -203,13 +209,47 @@ the system of record for accounts, trades, or positions; those remain derived
 from MySQL data. A real external market-data provider still needs to be
 integrated in a future increment.
 
+## P&L Dashboard and valuation history
+
+The P&L API prices current BOOKED positions using weighted average cost:
+
+```text
+marketValue = quantity × marketPrice
+unrealizedPnl = marketValue − costBasis
+pnlPercent = unrealizedPnl ÷ costBasis × 100
+```
+
+All calculations are performed by the backend with decimal arithmetic. Use
+`GET /api/pnl` for all accounts or add an `accountId` query parameter. A
+missing quote remains `null` and `available=false`; it is never replaced with a
+zero price. Totals include priced positions only and expose completeness and
+unpriced-position counts.
+
+Dashboard endpoints are:
+
+```text
+GET  /api/dashboard
+POST /api/dashboard/refresh
+GET  /api/dashboard/history?range=1D|7D|30D|ALL
+```
+
+Each endpoint accepts an optional `accountId`. Refresh forces quote retrieval,
+recalculates the dashboard, and saves valuation totals in MySQL. An all-account
+refresh saves both the ALL scope and each account scope. The configurable
+scheduler records the same scopes periodically without fabricating prior
+history. V5 stores only aggregate valuation snapshots and does not copy trades.
+Clearing Redis therefore removes quote cache entries but not valuation history.
+
+All displayed prices and P&L currently rely on explicit MOCK quotes. They must
+not be interpreted as live portfolio values.
+
 ## Current scope
 
 This increment does not allow short positions. Accounts are deactivated rather
 than deleted, and inactive accounts remain queryable but cannot accept new
 trades. Trades can be cancelled but are never physically deleted. It
 deliberately contains no trade editing, FIFO/LIFO accounting, cash balance,
-P&L, real external Market Data integration, historical valuation snapshots,
-ticker market verification, user management, Swagger, messaging, or charts.
+realized P&L, real external Market Data integration, fabricated historical
+backfill, ticker market verification, user management, Swagger, or messaging.
 Redis is used only as a disposable mock quote cache. Database schema changes
 are managed by Flyway; Hibernate only validates the schema.

@@ -5,6 +5,7 @@ import com.equitytrade.booking.account.application.AccountNotFoundException;
 import com.equitytrade.booking.account.application.AccountUseCaseValidationException;
 import com.equitytrade.booking.marketdata.application.MarketDataUnavailableException;
 import com.equitytrade.booking.marketdata.application.MarketDataValidationException;
+import com.equitytrade.booking.pnl.application.PnlValidationException;
 import com.equitytrade.booking.trade.application.TradeUseCaseValidationException;
 import com.equitytrade.booking.trade.application.TradeConflictException;
 import com.equitytrade.booking.trade.application.TradeNotFoundException;
@@ -116,6 +117,15 @@ public class TradeExceptionHandler {
     @ExceptionHandler(MarketDataValidationException.class)
     ResponseEntity<ProblemDetail> handleMarketDataValidation(
             MarketDataValidationException exception,
+            HttpServletRequest request) {
+        return badRequest(
+                Map.of(exception.field(), exception.reason()),
+                request);
+    }
+
+    @ExceptionHandler(PnlValidationException.class)
+    ResponseEntity<ProblemDetail> handlePnlValidation(
+            PnlValidationException exception,
             HttpServletRequest request) {
         return badRequest(
                 Map.of(exception.field(), exception.reason()),
