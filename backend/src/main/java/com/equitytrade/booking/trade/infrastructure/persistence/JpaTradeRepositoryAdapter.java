@@ -3,12 +3,15 @@ package com.equitytrade.booking.trade.infrastructure.persistence;
 import com.equitytrade.booking.trade.domain.Trade;
 import com.equitytrade.booking.trade.domain.TradePage;
 import com.equitytrade.booking.trade.domain.TradeRepository;
+import com.equitytrade.booking.trade.domain.TradeStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -23,6 +26,35 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
     @Override
     public Trade save(Trade trade) {
         return toDomain(repository.saveAndFlush(toEntity(trade)));
+    }
+
+    @Override
+    public Optional<Trade> findById(UUID id) {
+        return repository.findById(id.toString()).map(this::toDomain);
+    }
+
+    @Override
+    public List<Trade> findBookedByAccountAndTicker(
+            UUID accountId,
+            String ticker) {
+        return repository
+                .findByAccountIdAndTickerAndStatusOrderByExecutedAtAscCreatedAtAscIdAsc(
+                        accountId.toString(),
+                        ticker,
+                        TradeStatus.BOOKED)
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Trade> findAllBooked() {
+        return repository
+                .findByStatusOrderByExecutedAtAscCreatedAtAscIdAsc(
+                        TradeStatus.BOOKED)
+                .stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     @Override
@@ -52,7 +84,12 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
                 trade.tradePrice(),
                 trade.executedAt().atOffset(ZoneOffset.UTC).toLocalDateTime(),
                 trade.status(),
-                trade.createdAt().atOffset(ZoneOffset.UTC).toLocalDateTime());
+                trade.createdAt().atOffset(ZoneOffset.UTC).toLocalDateTime(),
+                trade.cancelledAt() == null
+                        ? null
+                        : trade.cancelledAt()
+                                .atOffset(ZoneOffset.UTC)
+                                .toLocalDateTime());
     }
 
     private Trade toDomain(TradeJpaEntity entity) {
@@ -65,6 +102,9 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
                 entity.getTradePrice(),
                 entity.getExecutedAt().toInstant(ZoneOffset.UTC),
                 entity.getStatus(),
-                entity.getCreatedAt().toInstant(ZoneOffset.UTC));
+                entity.getCreatedAt().toInstant(ZoneOffset.UTC),
+                entity.getCancelledAt() == null
+                        ? null
+                        : entity.getCancelledAt().toInstant(ZoneOffset.UTC));
     }
 }

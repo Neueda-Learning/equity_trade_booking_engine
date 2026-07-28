@@ -46,6 +46,16 @@
   gap: 10px;
 }
 
+.positions-panel {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.positions-panel h3 {
+  margin-top: 0;
+}
+
 .form-actions button,
 .account-actions button {
   padding: 9px 12px;

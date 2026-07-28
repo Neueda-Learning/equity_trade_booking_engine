@@ -19,7 +19,8 @@ public record Trade(
         BigDecimal tradePrice,
         Instant executedAt,
         TradeStatus status,
-        Instant createdAt) {
+        Instant createdAt,
+        Instant cancelledAt) {
 
     private static final Pattern TICKER_PATTERN =
             Pattern.compile("[A-Z][A-Z0-9.-]{0,9}");
@@ -54,9 +55,6 @@ public record Trade(
 
         if (side == null) {
             violations.add(new TradeFieldViolation("side", "is required"));
-        } else if (side != TradeSide.BUY) {
-            violations.add(new TradeFieldViolation(
-                    "side", "only BUY trades are supported"));
         }
 
         validateAmount("quantity", quantity, violations);
@@ -83,6 +81,24 @@ public record Trade(
                 tradePrice,
                 executedAt.truncatedTo(ChronoUnit.MICROS),
                 TradeStatus.BOOKED,
+                now.truncatedTo(ChronoUnit.MICROS),
+                null);
+    }
+
+    public Trade cancel(Instant now) {
+        if (status == TradeStatus.CANCELLED) {
+            return this;
+        }
+        return new Trade(
+                id,
+                accountId,
+                ticker,
+                side,
+                quantity,
+                tradePrice,
+                executedAt,
+                TradeStatus.CANCELLED,
+                createdAt,
                 now.truncatedTo(ChronoUnit.MICROS));
     }
 

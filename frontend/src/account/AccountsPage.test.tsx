@@ -73,6 +73,66 @@ describe('Accounts page', () => {
       await screen.findByText('must be exactly 4 digits'),
     ).toBeInTheDocument()
   })
+
+  it('loads positions for only the selected account', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response([primary, taxable]))
+      .mockResolvedValueOnce(
+        response([
+          {
+            accountId: taxable.id,
+            ticker: 'AAPL',
+            quantity: 6,
+            averageCost: 15,
+            costBasis: 90,
+          },
+        ]),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<AccountsPage />)
+    const taxableCard = (await screen.findByText('Taxable')).closest('article')!
+    fireEvent.click(
+      Array.from(taxableCard.querySelectorAll('button')).find(
+        (button) => button.textContent === 'View positions',
+      )!,
+    )
+
+    expect(await screen.findByText('AAPL')).toBeInTheDocument()
+    expect(screen.getByText('90')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/positions?accountId=taxable',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
+  })
+
+  it('shows position empty and error states', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response([primary, taxable]))
+      .mockResolvedValueOnce(response([]))
+      .mockRejectedValueOnce(new Error('offline'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<AccountsPage />)
+    await screen.findByText('Taxable')
+    const cards = screen.getAllByRole('article')
+    const primaryButton = Array.from(cards[0].querySelectorAll('button')).find(
+      (button) => button.textContent === 'View positions',
+    )!
+    fireEvent.click(primaryButton)
+    expect(screen.getByText('Loading positions…')).toBeInTheDocument()
+    expect(await screen.findByText('No open positions.')).toBeInTheDocument()
+
+    const taxableButton = Array.from(cards[1].querySelectorAll('button')).find(
+      (button) => button.textContent === 'View positions',
+    )!
+    fireEvent.click(taxableButton)
+    expect(
+      await screen.findByText('Positions are unavailable.'),
+    ).toBeInTheDocument()
+  })
 })
 
 function account(id: string, name: string, status: 'ACTIVE' | 'INACTIVE') {

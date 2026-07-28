@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react'
-import { getAccounts, getTrades, type Account, type Trade } from '../api'
+import {
+  getAccounts,
+  getPositions,
+  getTrades,
+  type Account,
+  type Position,
+  type Trade,
+} from '../api'
 
 function Dashboard() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
+  const [positions, setPositions] = useState<Position[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -12,10 +20,12 @@ function Dashboard() {
     Promise.all([
       getAccounts(controller.signal),
       getTrades(0, 5, undefined, controller.signal),
+      getPositions(undefined, controller.signal),
     ])
-      .then(([loadedAccounts, page]) => {
+      .then(([loadedAccounts, page, loadedPositions]) => {
         setAccounts(loadedAccounts)
         setTrades(page.items)
+        setPositions(loadedPositions)
       })
       .catch((reason: unknown) => {
         if (!(reason instanceof DOMException && reason.name === 'AbortError')) {
@@ -50,8 +60,17 @@ function Dashboard() {
               </strong>
             </article>
             <article>
-              <span>Recent activity</span>
-              <strong>{trades.length}</strong>
+              <span>Open positions</span>
+              <strong>{positions.length}</strong>
+            </article>
+            <article>
+              <span>Total cost basis</span>
+              <strong>
+                {positions.reduce(
+                  (total, position) => total + position.costBasis,
+                  0,
+                ).toFixed(2)}
+              </strong>
             </article>
           </div>
           <div className="panel dashboard-activity">
@@ -62,7 +81,8 @@ function Dashboard() {
               <ul>
                 {trades.map((trade) => (
                   <li key={trade.id}>
-                    <strong>{trade.ticker}</strong> BUY ·{' '}
+                    <strong>{trade.ticker}</strong> {trade.side} ·{' '}
+                    {trade.status} ·{' '}
                     {names.get(trade.accountId) ?? 'Unknown account'}
                   </li>
                 ))}

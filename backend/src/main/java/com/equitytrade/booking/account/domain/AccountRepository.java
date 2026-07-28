@@ -10,6 +10,8 @@ public interface AccountRepository {
 
     Optional<Account> findById(UUID id);
 
+    Optional<Account> findByIdForUpdate(UUID id);
+
     List<Account> findAll();
 
     boolean existsByNameExcludingId(String name, UUID excludedId);

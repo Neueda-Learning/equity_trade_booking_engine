@@ -35,21 +35,37 @@ class TradeTests {
     }
 
     @Test
-    void rejectsSellTradeWithSideViolation() {
-        assertThatThrownBy(() -> Trade.book(
+    void booksSellTrade() {
+        Trade trade = Trade.book(
                 ACCOUNT_ID,
                 "AAPL",
                 TradeSide.SELL,
                 BigDecimal.ONE,
                 BigDecimal.TEN,
                 NOW,
-                NOW))
-                .isInstanceOfSatisfying(
-                        TradeValidationException.class,
-                        exception -> assertThat(exception.violations())
-                                .containsExactly(new TradeFieldViolation(
-                                        "side",
-                                        "only BUY trades are supported")));
+                NOW);
+
+        assertThat(trade.side()).isEqualTo(TradeSide.SELL);
+        assertThat(trade.status()).isEqualTo(TradeStatus.BOOKED);
+    }
+
+    @Test
+    void cancellationIsIdempotentAndKeepsFirstTimestamp() {
+        Trade trade = Trade.book(
+                ACCOUNT_ID,
+                "AAPL",
+                TradeSide.BUY,
+                BigDecimal.ONE,
+                BigDecimal.TEN,
+                NOW,
+                NOW);
+
+        Trade cancelled = trade.cancel(NOW.plusSeconds(5));
+        Trade cancelledAgain = cancelled.cancel(NOW.plusSeconds(10));
+
+        assertThat(cancelled.status()).isEqualTo(TradeStatus.CANCELLED);
+        assertThat(cancelled.cancelledAt()).isEqualTo(NOW.plusSeconds(5));
+        assertThat(cancelledAgain).isSameAs(cancelled);
     }
 
     @Test

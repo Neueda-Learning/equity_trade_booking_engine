@@ -12,6 +12,7 @@ describe('application navigation', () => {
         const url = String(input)
         if (url === '/api/health') return response({ status: 'UP' })
         if (url === '/api/accounts') return response([])
+        if (url === '/api/positions') return response([])
         return response({
           items: [],
           page: 0,
@@ -33,7 +34,7 @@ describe('application navigation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Activity' }))
     expect(
-      await screen.findByRole('heading', { name: 'Book a BUY trade' }),
+      await screen.findByRole('heading', { name: 'Book a trade' }),
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Market Data' }))

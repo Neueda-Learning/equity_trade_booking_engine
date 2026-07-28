@@ -4,8 +4,10 @@ import {
   createAccount,
   deactivateAccount,
   getAccounts,
+  getPositions,
   updateAccount,
   type Account,
+  type Position,
 } from '../api'
 import './AccountsPage.css'
 
@@ -20,6 +22,10 @@ function AccountsPage() {
   const [message, setMessage] = useState('')
   const [serverError, setServerError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
+  const [positions, setPositions] = useState<Position[]>([])
+  const [positionsLoading, setPositionsLoading] = useState(false)
+  const [positionsError, setPositionsError] = useState('')
 
   async function load(signal?: AbortSignal) {
     setLoading(true)
@@ -49,6 +55,22 @@ function AccountsPage() {
       })
     return () => controller.abort()
   }, [])
+
+  useEffect(() => {
+    if (!selectedAccountId) return
+    const controller = new AbortController()
+    getPositions(selectedAccountId, controller.signal)
+      .then(setPositions)
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setPositionsError('Positions are unavailable.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPositionsLoading(false)
+      })
+    return () => controller.abort()
+  }, [selectedAccountId])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -192,6 +214,17 @@ function AccountsPage() {
                   {account.status}
                 </span>
                 <div className="account-actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAccountId(account.id)
+                      setPositions([])
+                      setPositionsError('')
+                      setPositionsLoading(true)
+                    }}
+                  >
+                    View positions
+                  </button>
                   <button type="button" onClick={() => edit(account)}>
                     Edit
                   </button>
@@ -205,6 +238,54 @@ function AccountsPage() {
                 </div>
               </article>
             ))}
+          </div>
+        )}
+        {selectedAccountId && (
+          <div className="positions-panel">
+            <h3>
+              Positions ·{' '}
+              {accounts.find((account) => account.id === selectedAccountId)
+                ?.name ?? 'Account'}
+            </h3>
+            {positionsLoading && (
+              <p className="table-state">Loading positions…</p>
+            )}
+            {positionsError && (
+              <p className="table-state table-state--error" role="alert">
+                {positionsError}
+              </p>
+            )}
+            {!positionsLoading &&
+              !positionsError &&
+              positions.length === 0 && (
+                <p className="table-state">No open positions.</p>
+              )}
+            {!positionsLoading &&
+              !positionsError &&
+              positions.length > 0 && (
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Ticker</th>
+                        <th>Quantity</th>
+                        <th>Average cost</th>
+                        <th>Cost basis</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {positions.map((position) => (
+                        <tr key={position.ticker}>
+                          <td>{position.ticker}</td>
+                          <td>{position.quantity}</td>
+                          <td>{position.averageCost}</td>
+                          <td>{position.costBasis}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
           </div>
         )}
       </div>

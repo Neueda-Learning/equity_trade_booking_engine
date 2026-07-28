@@ -75,6 +75,31 @@ wait_for_health() {
   done
 }
 
+wait_for_db_initialization() {
+  local deadline=$((SECONDS + 90))
+  local consecutive_pings=0
+  local logs
+
+  while ((SECONDS < deadline)); do
+    logs="$(compose logs --no-color db 2>&1 || true)"
+    if [[ "$logs" == *"MySQL init process done. Ready for start up."* ]] &&
+        compose exec -T db sh -c \
+          'mysqladmin ping -h 127.0.0.1 -u root -p"$MYSQL_ROOT_PASSWORD" --silent' \
+          >/dev/null 2>&1; then
+      ((consecutive_pings += 1))
+      if ((consecutive_pings >= 3)); then
+        return 0
+      fi
+    else
+      consecutive_pings=0
+    fi
+    sleep 2
+  done
+
+  echo "Timed out waiting for final MySQL initialization." >&2
+  return 1
+}
+
 published_port() {
   local service=$1
   local container_port=$2
@@ -105,7 +130,9 @@ fi
 echo "Compose smoke project: $PROJECT_NAME"
 echo "Compose smoke volume: ${PROJECT_NAME}_mysql_data"
 compose config >/dev/null
-compose up -d --build
+compose up -d --build db
+wait_for_db_initialization
+compose up -d --build backend frontend
 
 BACKEND_HOST_PORT="$(published_port backend 8080)"
 readonly FRONTEND_HOST_PORT="$(published_port frontend 80)"
@@ -130,15 +157,16 @@ jq --exit-status --arg accountId "$ACCOUNT_ID" \
   'any(.[]; .id == $accountId and .baseCurrency == "USD")' \
   "$LOG_DIR/accounts.json" >/dev/null
 
-readonly EXECUTED_AT="$(date -u -d '5 seconds ago' +%Y-%m-%dT%H:%M:%SZ)"
+readonly BUY_EXECUTED_AT="$(date -u -d '10 seconds ago' +%Y-%m-%dT%H:%M:%SZ)"
+readonly SELL_EXECUTED_AT="$(date -u -d '5 seconds ago' +%Y-%m-%dT%H:%M:%SZ)"
 jq --null-input \
   --arg accountId "$ACCOUNT_ID" \
-  --arg executedAt "$EXECUTED_AT" \
+  --arg executedAt "$BUY_EXECUTED_AT" \
   '{
     accountId: $accountId,
     ticker: " audit ",
     side: "BUY",
-    quantity: 1.250000,
+    quantity: 10.000000,
     tradePrice: 42.125000,
     executedAt: $executedAt
   }' >"$LOG_DIR/buy-request.json"
@@ -157,39 +185,20 @@ jq --exit-status --arg accountId "$ACCOUNT_ID" '
   .ticker == "AUDIT" and
   .side == "BUY" and
   .status == "BOOKED" and
-  .quantity == 1.25 and
+  .quantity == 10 and
   .tradePrice == 42.125
 ' "$LOG_DIR/buy-response.json" >/dev/null
-readonly TRADE_ID="$(jq --raw-output '.id' "$LOG_DIR/buy-response.json")"
-
-curl --fail --silent --show-error \
-  "$BACKEND_URL/api/trades?accountId=$ACCOUNT_ID&page=0&size=10" \
-  >"$LOG_DIR/trades-before-restart.json"
-jq --exit-status --arg id "$TRADE_ID" --arg accountId "$ACCOUNT_ID" \
-  'any(.items[]; .id == $id and .accountId == $accountId)' \
-  "$LOG_DIR/trades-before-restart.json" >/dev/null
-
-compose restart backend
-BACKEND_HOST_PORT="$(published_port backend 8080)"
-BACKEND_URL="http://127.0.0.1:${BACKEND_HOST_PORT}"
-wait_for_health "$BACKEND_URL/api/health"
-curl --fail --silent --show-error \
-  "$BACKEND_URL/api/trades?accountId=$ACCOUNT_ID&page=0&size=10" \
-  >"$LOG_DIR/trades-after-restart.json"
-jq --exit-status --arg id "$TRADE_ID" --arg accountId "$ACCOUNT_ID" \
-  'any(.items[]; .id == $id and .accountId == $accountId)' \
-  "$LOG_DIR/trades-after-restart.json" >/dev/null
-readonly VALID_TOTAL="$(jq '.totalElements' "$LOG_DIR/trades-after-restart.json")"
+readonly BUY_ID="$(jq --raw-output '.id' "$LOG_DIR/buy-response.json")"
 
 jq --null-input \
   --arg accountId "$ACCOUNT_ID" \
-  --arg executedAt "$EXECUTED_AT" \
+  --arg executedAt "$SELL_EXECUTED_AT" \
   '{
     accountId: $accountId,
-    ticker: "AAPL",
+    ticker: "AUDIT",
     side: "SELL",
-    quantity: 1,
-    tradePrice: 10,
+    quantity: 4,
+    tradePrice: 45,
     executedAt: $executedAt
   }' >"$LOG_DIR/sell-request.json"
 sell_metadata="$(curl --silent --show-error \
@@ -199,14 +208,90 @@ sell_metadata="$(curl --silent --show-error \
   --header 'Content-Type: application/json' \
   --data-binary "@$LOG_DIR/sell-request.json" \
   "$BACKEND_URL/api/trades")"
-assert_response 400 application/problem+json "$sell_metadata"
+assert_response 201 application/json "$sell_metadata"
+jq --exit-status --arg accountId "$ACCOUNT_ID" '
+  (.id | test("^[0-9a-f-]{36}$")) and
+  .accountId == $accountId and
+  .ticker == "AUDIT" and
+  .side == "SELL" and
+  .status == "BOOKED" and
+  .quantity == 4
+' "$LOG_DIR/sell-response.json" >/dev/null
+readonly SELL_ID="$(jq --raw-output '.id' "$LOG_DIR/sell-response.json")"
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/positions?accountId=$ACCOUNT_ID" \
+  >"$LOG_DIR/positions-after-sell.json"
 jq --exit-status \
-  '.errors.side == "only BUY trades are supported"' \
-  "$LOG_DIR/sell-response.json" >/dev/null
+  'any(.[]; .ticker == "AUDIT" and .quantity == 6)' \
+  "$LOG_DIR/positions-after-sell.json" >/dev/null
+
+cancel_buy_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/cancel-buy-conflict.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  "$BACKEND_URL/api/trades/$BUY_ID/cancel")"
+assert_response 409 application/problem+json "$cancel_buy_metadata"
+jq --exit-status \
+  '.errors.quantity | startswith("insufficient position; available at execution time:")' \
+  "$LOG_DIR/cancel-buy-conflict.json" >/dev/null
+
+cancel_sell_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/cancel-sell.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  "$BACKEND_URL/api/trades/$SELL_ID/cancel")"
+assert_response 200 application/json "$cancel_sell_metadata"
+jq --exit-status --arg id "$SELL_ID" \
+  '.id == $id and .status == "CANCELLED" and (.cancelledAt | length > 0)' \
+  "$LOG_DIR/cancel-sell.json" >/dev/null
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/positions?accountId=$ACCOUNT_ID" \
+  >"$LOG_DIR/positions-after-cancel-sell.json"
+jq --exit-status \
+  'any(.[]; .ticker == "AUDIT" and .quantity == 10)' \
+  "$LOG_DIR/positions-after-cancel-sell.json" >/dev/null
+
+cancel_buy_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/cancel-buy.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  "$BACKEND_URL/api/trades/$BUY_ID/cancel")"
+assert_response 200 application/json "$cancel_buy_metadata"
+jq --exit-status --arg id "$BUY_ID" \
+  '.id == $id and .status == "CANCELLED" and (.cancelledAt | length > 0)' \
+  "$LOG_DIR/cancel-buy.json" >/dev/null
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/positions?accountId=$ACCOUNT_ID" \
+  >"$LOG_DIR/positions-empty.json"
+jq --exit-status \
+  'all(.[]; .ticker != "AUDIT")' \
+  "$LOG_DIR/positions-empty.json" >/dev/null
+
+compose restart backend
+BACKEND_HOST_PORT="$(published_port backend 8080)"
+BACKEND_URL="http://127.0.0.1:${BACKEND_HOST_PORT}"
+wait_for_health "$BACKEND_URL/api/health"
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/positions?accountId=$ACCOUNT_ID" \
+  >"$LOG_DIR/positions-after-restart.json"
+jq --exit-status \
+  'all(.[]; .ticker != "AUDIT")' \
+  "$LOG_DIR/positions-after-restart.json" >/dev/null
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/trades?accountId=$ACCOUNT_ID&page=0&size=10" \
+  >"$LOG_DIR/trades-after-restart.json"
+jq --exit-status --arg buyId "$BUY_ID" --arg sellId "$SELL_ID" '
+  any(.items[]; .id == $buyId and .status == "CANCELLED") and
+  any(.items[]; .id == $sellId and .status == "CANCELLED")
+' "$LOG_DIR/trades-after-restart.json" >/dev/null
+readonly VALID_TOTAL="$(jq '.totalElements' "$LOG_DIR/trades-after-restart.json")"
 
 jq --null-input \
   --arg accountId "$ACCOUNT_ID" \
-  --arg executedAt "$EXECUTED_AT" \
+  --arg executedAt "$SELL_EXECUTED_AT" \
   '{
     accountId: $accountId,
     ticker: "AAPL",
@@ -234,4 +319,4 @@ jq --exit-status --argjson expected "$VALID_TOTAL" \
   '.totalElements == $expected' \
   "$LOG_DIR/trades-after-invalid.json" >/dev/null
 
-echo "Compose smoke passed for account $ACCOUNT_ID and trade $TRADE_ID."
+echo "Compose smoke passed for account $ACCOUNT_ID, BUY $BUY_ID and SELL $SELL_ID."

@@ -70,7 +70,8 @@ class TradeApiIntegrationTests {
                         .value("2026-07-28T06:30:00Z"))
                 .andExpect(jsonPath("$.status").value("BOOKED"))
                 .andExpect(jsonPath("$.createdAt")
-                        .value("2026-07-28T06:30:30Z"));
+                        .value("2026-07-28T06:30:30Z"))
+                .andExpect(jsonPath("$.cancelledAt").doesNotExist());
 
         mockMvc.perform(get("/api/trades?page=0&size=10"))
                 .andExpect(status().isOk())
@@ -83,19 +84,21 @@ class TradeApiIntegrationTests {
     }
 
     @Test
-    void rejectsSellAndDoesNotPersistIt() throws Exception {
-        expectValidationProblem(
-                mockMvc.perform(post("/api/trades")
+    void booksSellWhenPositionIsAvailable() throws Exception {
+        book("AAPL", "2026-07-28T06:29:00Z");
+
+        mockMvc.perform(post("/api/trades")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequest(
                                 "SELL",
-                                "2026-07-28T06:30:00Z"))),
-                "side",
-                "only BUY trades are supported");
+                                "2026-07-28T06:30:00Z")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.side").value("SELL"))
+                .andExpect(jsonPath("$.status").value("BOOKED"));
 
         mockMvc.perform(get("/api/trades"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(0));
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
