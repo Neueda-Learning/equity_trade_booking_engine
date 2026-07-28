@@ -31,6 +31,7 @@ fi
 export BACKEND_PORT=0
 export FRONTEND_PORT=0
 export MYSQL_HOST_PORT=0
+export REDIS_HOST_PORT=0
 export BACKEND_IMAGE="${PROJECT_NAME}-backend:smoke"
 export FRONTEND_IMAGE="${PROJECT_NAME}-frontend:smoke"
 
@@ -43,7 +44,7 @@ compose() {
 
 collect_diagnostics() {
   compose ps -a | tee "$LOG_DIR/compose-ps.txt" || true
-  compose logs --no-color db backend frontend \
+  compose logs --no-color db redis backend frontend \
     >"$LOG_DIR/compose.log" 2>&1 || true
   if [[ -f "$LOG_DIR/compose.log" ]]; then
     cat "$LOG_DIR/compose.log"
@@ -100,6 +101,17 @@ wait_for_db_initialization() {
   return 1
 }
 
+wait_for_redis() {
+  local deadline=$((SECONDS + 60))
+  until [[ "$(compose exec -T redis redis-cli ping 2>/dev/null)" == "PONG" ]]; do
+    if ((SECONDS >= deadline)); then
+      echo "Timed out waiting for Redis." >&2
+      return 1
+    fi
+    sleep 2
+  done
+}
+
 published_port() {
   local service=$1
   local container_port=$2
@@ -128,10 +140,11 @@ if ! command -v jq >/dev/null; then
 fi
 
 echo "Compose smoke project: $PROJECT_NAME"
-echo "Compose smoke volume: ${PROJECT_NAME}_mysql_data"
+echo "Compose smoke volumes: ${PROJECT_NAME}_mysql_data and ${PROJECT_NAME}_redis_data"
 compose config >/dev/null
-compose up -d --build db
+compose up -d --build db redis
 wait_for_db_initialization
+wait_for_redis
 compose up -d --build backend frontend
 
 BACKEND_HOST_PORT="$(published_port backend 8080)"
@@ -189,6 +202,57 @@ jq --exit-status --arg accountId "$ACCOUNT_ID" '
   .tradePrice == 42.125
 ' "$LOG_DIR/buy-response.json" >/dev/null
 readonly BUY_ID="$(jq --raw-output '.id' "$LOG_DIR/buy-response.json")"
+
+first_quote_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/quote-first.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  "$BACKEND_URL/api/market-data/quotes/AUDIT")"
+assert_response 200 application/json "$first_quote_metadata"
+jq --exit-status '
+  .ticker == "AUDIT" and
+  .price > 0 and
+  .previousClose > 0 and
+  .source == "MOCK" and
+  .mock == true and
+  .cached == false and
+  .stale == false
+' "$LOG_DIR/quote-first.json" >/dev/null
+
+second_quote_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/quote-second.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  "$BACKEND_URL/api/market-data/quotes/AUDIT")"
+assert_response 200 application/json "$second_quote_metadata"
+jq --exit-status \
+  '.ticker == "AUDIT" and .cached == true and .stale == false' \
+  "$LOG_DIR/quote-second.json" >/dev/null
+
+compose exec -T redis redis-cli --raw GET market:quote:AUDIT \
+  >"$LOG_DIR/redis-quote.json"
+jq --exit-status '
+  .ticker == "AUDIT" and
+  .source == "MOCK" and
+  .mock == true
+' "$LOG_DIR/redis-quote.json" >/dev/null
+
+refresh_quote_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/quote-refresh.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  "$BACKEND_URL/api/market-data/quotes/AUDIT/refresh")"
+assert_response 200 application/json "$refresh_quote_metadata"
+jq --exit-status \
+  '.ticker == "AUDIT" and .mock == true and .cached == false' \
+  "$LOG_DIR/quote-refresh.json" >/dev/null
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/market-data/quotes?accountId=$ACCOUNT_ID" \
+  >"$LOG_DIR/account-quotes.json"
+jq --exit-status '
+  .items | length == 1 and
+  .[0].ticker == "AUDIT" and
+  .[0].source == "MOCK"
+' "$LOG_DIR/account-quotes.json" >/dev/null
 
 jq --null-input \
   --arg accountId "$ACCOUNT_ID" \
@@ -275,6 +339,12 @@ BACKEND_HOST_PORT="$(published_port backend 8080)"
 BACKEND_URL="http://127.0.0.1:${BACKEND_HOST_PORT}"
 wait_for_health "$BACKEND_URL/api/health"
 curl --fail --silent --show-error \
+  "$BACKEND_URL/api/market-data/quotes/AUDIT" \
+  >"$LOG_DIR/quote-after-restart.json"
+jq --exit-status \
+  '.ticker == "AUDIT" and .cached == true and .mock == true' \
+  "$LOG_DIR/quote-after-restart.json" >/dev/null
+curl --fail --silent --show-error \
   "$BACKEND_URL/api/positions?accountId=$ACCOUNT_ID" \
   >"$LOG_DIR/positions-after-restart.json"
 jq --exit-status \
@@ -319,4 +389,4 @@ jq --exit-status --argjson expected "$VALID_TOTAL" \
   '.totalElements == $expected' \
   "$LOG_DIR/trades-after-invalid.json" >/dev/null
 
-echo "Compose smoke passed for account $ACCOUNT_ID, BUY $BUY_ID and SELL $SELL_ID."
+echo "Compose smoke passed for MySQL lifecycle and Redis-backed MOCK quote AUDIT."

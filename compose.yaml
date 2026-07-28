@@ -26,6 +26,21 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  redis:
+    image: redis:7.4.2-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
   backend:
     image: ${BACKEND_IMAGE:-equity-booking-backend:walking-skeleton}
     build:
@@ -34,10 +49,17 @@ services:
       DB_URL: jdbc:mysql://db:3306/equity_booking?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
       DB_USERNAME: ${DB_USERNAME:-equity_app}
       DB_PASSWORD: ${DB_PASSWORD:-local_app_password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}
+      MARKET_DATA_FRESH_TTL: ${MARKET_DATA_FRESH_TTL:-60s}
+      MARKET_DATA_RETENTION_TTL: ${MARKET_DATA_RETENTION_TTL:-24h}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test:
@@ -64,3 +86,4 @@ services:
 
 volumes:
   mysql_data:
+  redis_data:

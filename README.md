@@ -7,13 +7,15 @@
 This repository contains a modular monolith for account-scoped trade lifecycle
 management. A user can manage multiple securities accounts, book BUY and SELL
 trades against an active account, cancel eligible trades, review positions, and
-inspect the filtered, paginated Activity ledger.
+inspect the filtered, paginated Activity ledger. Position tickers can also be
+priced by an explicitly labelled deterministic mock provider backed by Redis.
 
 ## Technology stack
 
 - Backend: Java 21, Spring Boot 3.5.14, Maven, Actuator, JPA, and Flyway
 - Frontend: React, TypeScript, Vite, Vitest, React Testing Library, and ESLint
 - Database: MySQL 8.4 LTS with InnoDB and `utf8mb4`
+- Quote cache: Redis 7.4.2 with JSON values and bounded retention
 - Local orchestration: Docker Compose and Nginx
 - CI: GitHub Actions with Java 21 and Node 22
 
@@ -42,8 +44,9 @@ Once all containers are healthy, open:
 - Backend health: <http://localhost:8080/api/health>
 - Health through the frontend proxy: <http://localhost:3000/api/health>
 
-MySQL is exposed on host port `3307` by default. The application containers use
-the private Compose address `db:3306`.
+MySQL is exposed on host port `3307` and Redis on `6379` by default. The
+application containers use the private Compose addresses `db:3306` and
+`redis:6379`.
 
 Stop the services without deleting the named database volume:
 
@@ -60,8 +63,8 @@ cd backend
 ./mvnw test
 ```
 
-The integration profile runs the same application against a MySQL 8.4
-Testcontainer and requires Docker:
+The integration profile runs the same application against MySQL 8.4 and Redis
+7.4.2 Testcontainers and requires Docker:
 
 ```bash
 ./mvnw verify -Pintegration
@@ -93,6 +96,10 @@ Compose reads:
 | `FRONTEND_PORT` | `3000` | Frontend host port |
 | `BACKEND_PORT` | `8080` | Backend host port |
 | `MYSQL_HOST_PORT` | `3307` | MySQL host port |
+| `REDIS_HOST_PORT` | `6379` | Redis host port |
+| `MARKET_DATA_PROVIDER` | `mock` | Selected quote provider |
+| `MARKET_DATA_FRESH_TTL` | `60s` | Duration before a quote is refreshed |
+| `MARKET_DATA_RETENTION_TTL` | `24h` | Redis stale-fallback retention |
 
 When the backend runs outside Compose, `DB_URL` defaults to
 `jdbc:mysql://localhost:3307/equity_booking?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC`.
@@ -168,12 +175,41 @@ SELL and cancellation validation replay BOOKED trades in chronological order,
 so a trade cannot make an account/ticker position negative at any point.
 Positions use weighted average cost and exclude CANCELLED trades.
 
+## Mock Market Data API
+
+The current provider is `mock`. It produces deterministic, positive prices
+with at most six decimal places and always returns `source=MOCK` and
+`mock=true`. These values are generated locally for development and testing;
+they are not live, delayed, or otherwise real market prices.
+
+Fetch or force-refresh one quote:
+
+```bash
+curl http://localhost:8080/api/market-data/quotes/AAPL
+curl -X POST http://localhost:8080/api/market-data/quotes/AAPL/refresh
+```
+
+Fetch quotes for current BOOKED positions across all accounts or one account:
+
+```bash
+curl http://localhost:8080/api/market-data/quotes
+curl 'http://localhost:8080/api/market-data/quotes?accountId=00000000-0000-0000-0000-000000000001'
+```
+
+Redis keys use `market:quote:{TICKER}` and contain JSON quote values only.
+Quotes are fresh for 60 seconds by default and retained for 24 hours so a
+future provider failure can return a clearly marked stale value. Redis is not
+the system of record for accounts, trades, or positions; those remain derived
+from MySQL data. A real external market-data provider still needs to be
+integrated in a future increment.
+
 ## Current scope
 
 This increment does not allow short positions. Accounts are deactivated rather
 than deleted, and inactive accounts remain queryable but cannot accept new
 trades. Trades can be cancelled but are never physically deleted. It
 deliberately contains no trade editing, FIFO/LIFO accounting, cash balance,
-P&L, Market Data integration or cache, ticker market verification, user
-management, Swagger, Redis, messaging, or charts. Database schema changes are
-managed by Flyway; Hibernate only validates the schema.
+P&L, real external Market Data integration, historical valuation snapshots,
+ticker market verification, user management, Swagger, messaging, or charts.
+Redis is used only as a disposable mock quote cache. Database schema changes
+are managed by Flyway; Hibernate only validates the schema.
