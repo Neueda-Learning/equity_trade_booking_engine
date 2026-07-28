@@ -64,6 +64,13 @@
   font-size: 0.86rem;
 }
 
+.dashboard-stale-banner {
+  border-left: 4px solid #d97706;
+  color: #92400e;
+  background: #fffbeb;
+  font-weight: 750;
+}
+
 .quote-flags {
   flex-wrap: wrap;
   gap: 6px;

@@ -1,6 +1,7 @@
 package com.equitytrade.booking.marketdata.application;
 
 import com.equitytrade.booking.marketdata.domain.MarketDataCache;
+import com.equitytrade.booking.marketdata.domain.MarketDataFailureCategory;
 import com.equitytrade.booking.marketdata.domain.MarketDataProvider;
 import com.equitytrade.booking.marketdata.domain.MarketDataProviderException;
 import com.equitytrade.booking.marketdata.domain.MarketQuote;
@@ -96,6 +97,16 @@ class MarketDataApplicationServiceTests {
     }
 
     @Test
+    void notFoundWithoutCacheIsDistinctAndNeverFallsBackToMock() {
+        provider.failureCategory = MarketDataFailureCategory.NOT_FOUND;
+
+        assertThatThrownBy(() -> service.quote("AAPL"))
+                .isInstanceOf(MarketDataNotFoundException.class);
+        assertThat(cache.find("AAPL")).isEmpty();
+        assertThat(provider.calls).hasValue(1);
+    }
+
+    @Test
     void validatesTickerAndUsesAccountScopedPositionTickers() {
         assertThatThrownBy(() -> service.quote("bad ticker"))
                 .isInstanceOf(MarketDataValidationException.class)
@@ -146,12 +157,17 @@ class MarketDataApplicationServiceTests {
         private final AtomicInteger calls = new AtomicInteger();
         private final MarketQuote quote = quote("AAPL", NOW);
         private boolean fail;
+        private MarketDataFailureCategory failureCategory;
 
         @Override
         public MarketQuote fetch(String ticker) {
             calls.incrementAndGet();
-            if (fail) {
-                throw new MarketDataProviderException("provider unavailable");
+            if (fail || failureCategory != null) {
+                throw new MarketDataProviderException(
+                        failureCategory == null
+                                ? MarketDataFailureCategory.UNKNOWN
+                                : failureCategory,
+                        "provider unavailable");
             }
             return ticker.equals(quote.ticker())
                     ? quote

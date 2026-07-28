@@ -71,6 +71,22 @@ export interface MarketQuoteList {
   items: MarketQuote[]
 }
 
+export interface MarketDataProviderStatus {
+  provider: 'MOCK' | 'FINNHUB'
+  configured: boolean
+  demoControlsEnabled: boolean
+  demoOutageEnabled: boolean
+  lastSuccessAt: string | null
+  lastFailureAt: string | null
+  lastFailureCategory: string | null
+}
+
+export interface DemoOutage {
+  enabled: boolean
+  demoOnly: true
+  message: string
+}
+
 export interface PositionPnl {
   accountId: string | null
   ticker: string
@@ -281,6 +297,33 @@ export function getMarketQuote(ticker: string, signal?: AbortSignal) {
 export function refreshMarketQuote(ticker: string) {
   return request<MarketQuote>(
     `/api/market-data/quotes/${encodeURIComponent(ticker)}/refresh`,
+    { method: 'POST' },
+  )
+}
+
+export function getMarketDataProviderStatus(signal?: AbortSignal) {
+  return request<MarketDataProviderStatus>(
+    '/api/market-data/provider/status',
+    { signal },
+  )
+}
+
+export function getDemoMarketDataOutage(signal?: AbortSignal) {
+  return request<DemoOutage>('/api/demo/market-data/outage', {
+    signal,
+  })
+}
+
+export function enableDemoMarketDataOutage() {
+  return request<DemoOutage>(
+    '/api/demo/market-data/outage/enable',
+    { method: 'POST' },
+  )
+}
+
+export function disableDemoMarketDataOutage() {
+  return request<DemoOutage>(
+    '/api/demo/market-data/outage/disable',
     { method: 'POST' },
   )
 }

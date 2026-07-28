@@ -2,6 +2,7 @@ package com.equitytrade.booking.pnl.infrastructure.marketdata;
 
 import com.equitytrade.booking.marketdata.application.MarketDataApplicationService;
 import com.equitytrade.booking.marketdata.application.MarketDataUnavailableException;
+import com.equitytrade.booking.marketdata.application.MarketDataNotFoundException;
 import com.equitytrade.booking.marketdata.application.MarketQuoteView;
 import com.equitytrade.booking.pnl.domain.PnlQuote;
 import com.equitytrade.booking.pnl.domain.PnlQuoteSource;
@@ -44,7 +45,8 @@ public class MarketDataPnlQuoteSourceAdapter implements PnlQuoteSource {
                     quote.mock(),
                     quote.cached(),
                     quote.stale()));
-        } catch (MarketDataUnavailableException exception) {
+        } catch (MarketDataUnavailableException
+                | MarketDataNotFoundException exception) {
             return Optional.empty();
         }
     }

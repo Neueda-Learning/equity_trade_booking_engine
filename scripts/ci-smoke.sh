@@ -32,20 +32,30 @@ export BACKEND_PORT=0
 export FRONTEND_PORT=0
 export MYSQL_HOST_PORT=0
 export REDIS_HOST_PORT=0
+export FINNHUB_STUB_HOST_PORT=0
+export MARKET_DATA_PROVIDER=finnhub
+export FINNHUB_BASE_URL=http://finnhub-stub:8080
+export FINNHUB_API_KEY=ci-finnhub-dummy-token
+export FINNHUB_STUB_TOKEN=ci-finnhub-dummy-token
+export MARKET_DATA_CONNECT_TIMEOUT_MS=500
+export MARKET_DATA_READ_TIMEOUT_MS=500
+export MARKET_DATA_MAX_ATTEMPTS=2
+export MARKET_DATA_DEMO_CONTROLS_ENABLED=false
 export DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED=false
 export BACKEND_IMAGE="${PROJECT_NAME}-backend:smoke"
 export FRONTEND_IMAGE="${PROJECT_NAME}-frontend:smoke"
+export FINNHUB_STUB_IMAGE="${PROJECT_NAME}-finnhub-stub:smoke"
 
 mkdir -p "$LOG_DIR"
 cd "$PROJECT_ROOT"
 
 compose() {
-  docker compose -p "$PROJECT_NAME" "$@"
+  docker compose --profile ci-finnhub -p "$PROJECT_NAME" "$@"
 }
 
 collect_diagnostics() {
   compose ps -a | tee "$LOG_DIR/compose-ps.txt" || true
-  compose logs --no-color db redis backend frontend \
+  compose logs --no-color db redis finnhub-stub backend frontend \
     >"$LOG_DIR/compose.log" 2>&1 || true
   if [[ -f "$LOG_DIR/compose.log" ]]; then
     cat "$LOG_DIR/compose.log"
@@ -113,6 +123,27 @@ wait_for_redis() {
   done
 }
 
+wait_for_stub() {
+  local url=$1
+  local deadline=$((SECONDS + 60))
+  until curl --fail --silent --show-error "$url/health" |
+      jq --exit-status '.status == "UP"' >/dev/null; do
+    if ((SECONDS >= deadline)); then
+      echo "Timed out waiting for Finnhub stub." >&2
+      return 1
+    fi
+    sleep 2
+  done
+}
+
+set_stub_mode() {
+  local mode=$1
+  curl --fail --silent --show-error \
+    --request POST \
+    "$FINNHUB_STUB_URL/__control?mode=$mode" |
+    jq --exit-status --arg mode "$mode" '.mode == $mode' >/dev/null
+}
+
 published_port() {
   local service=$1
   local container_port=$2
@@ -143,9 +174,13 @@ fi
 echo "Compose smoke project: $PROJECT_NAME"
 echo "Compose smoke volumes: ${PROJECT_NAME}_mysql_data and ${PROJECT_NAME}_redis_data"
 compose config >/dev/null
-compose up -d --build db redis
+compose up -d --build db redis finnhub-stub
 wait_for_db_initialization
 wait_for_redis
+readonly FINNHUB_STUB_HOST_PORT="$(published_port finnhub-stub 8080)"
+readonly FINNHUB_STUB_URL="http://127.0.0.1:${FINNHUB_STUB_HOST_PORT}"
+wait_for_stub "$FINNHUB_STUB_URL"
+set_stub_mode normal
 compose up -d --build backend frontend
 
 BACKEND_HOST_PORT="$(published_port backend 8080)"
@@ -220,8 +255,8 @@ jq --exit-status '
   .ticker == "AUDIT" and
   .price > 0 and
   .previousClose > 0 and
-  .source == "MOCK" and
-  .mock == true and
+  .source == "FINNHUB" and
+  .mock == false and
   .cached == false and
   .stale == false
 ' "$LOG_DIR/quote-first.json" >/dev/null
@@ -239,8 +274,8 @@ compose exec -T redis redis-cli --raw GET market:quote:AUDIT \
   >"$LOG_DIR/redis-quote.json"
 jq --exit-status '
   .ticker == "AUDIT" and
-  .source == "MOCK" and
-  .mock == true
+  .source == "FINNHUB" and
+  .mock == false
 ' "$LOG_DIR/redis-quote.json" >/dev/null
 
 refresh_quote_metadata="$(curl --silent --show-error \
@@ -250,7 +285,8 @@ refresh_quote_metadata="$(curl --silent --show-error \
   "$BACKEND_URL/api/market-data/quotes/AUDIT/refresh")"
 assert_response 200 application/json "$refresh_quote_metadata"
 jq --exit-status \
-  '.ticker == "AUDIT" and .mock == true and .cached == false' \
+  '.ticker == "AUDIT" and .source == "FINNHUB" and
+   .mock == false and .cached == false and .stale == false' \
   "$LOG_DIR/quote-refresh.json" >/dev/null
 
 curl --fail --silent --show-error \
@@ -259,7 +295,8 @@ curl --fail --silent --show-error \
 jq --exit-status '
   .items | length == 1 and
   .[0].ticker == "AUDIT" and
-  .[0].source == "MOCK"
+  .[0].source == "FINNHUB" and
+  .[0].mock == false
 ' "$LOG_DIR/account-quotes.json" >/dev/null
 
 curl --fail --silent --show-error \
@@ -282,6 +319,107 @@ jq --exit-status --argjson price "$QUOTE_PRICE" '
   .totals.complete == true and
   .totals.unpricedPositionCount == 0
 ' "$LOG_DIR/pnl.json" >/dev/null
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/market-data/provider/status" \
+  >"$LOG_DIR/provider-status-success.json"
+jq --exit-status '
+  .provider == "FINNHUB" and
+  .configured == true and
+  .demoControlsEnabled == false and
+  .demoOutageEnabled == false and
+  (.lastSuccessAt | length > 0)
+' "$LOG_DIR/provider-status-success.json" >/dev/null
+
+demo_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/demo-disabled.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  "$BACKEND_URL/api/demo/market-data/outage")"
+assert_response 404 application/problem+json "$demo_metadata"
+
+set_stub_mode server_error
+outage_quote_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/quote-stale.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  "$BACKEND_URL/api/market-data/quotes/AUDIT/refresh")"
+assert_response 200 application/json "$outage_quote_metadata"
+jq --exit-status '
+  .ticker == "AUDIT" and
+  .source == "FINNHUB" and
+  .mock == false and
+  .cached == true and
+  .stale == true
+' "$LOG_DIR/quote-stale.json" >/dev/null
+
+dashboard_stale_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/dashboard-stale.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  "$BACKEND_URL/api/dashboard/refresh?accountId=$ACCOUNT_ID")"
+assert_response 200 application/json "$dashboard_stale_metadata"
+jq --exit-status '
+  .totals.complete == true and
+  .totals.stale == true and
+  (.positions | any(
+    .ticker == "AUDIT" and
+    .source == "FINNHUB" and
+    .cached == true and
+    .stale == true and
+    .available == true
+  ))
+' "$LOG_DIR/dashboard-stale.json" >/dev/null
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/pnl?accountId=$ACCOUNT_ID" \
+  >"$LOG_DIR/pnl-stale.json"
+jq --exit-status '
+  .totals.complete == true and
+  .totals.stale == true and
+  (.items | any(.ticker == "AUDIT" and .available == true and .stale == true))
+' "$LOG_DIR/pnl-stale.json" >/dev/null
+
+compose exec -T redis redis-cli FLUSHDB >/dev/null
+no_cache_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/quote-no-cache.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  "$BACKEND_URL/api/market-data/quotes/AUDIT/refresh")"
+assert_response 503 application/problem+json "$no_cache_metadata"
+jq --exit-status '
+  .status == 503 and
+  .errors.provider == "provider server error"
+' "$LOG_DIR/quote-no-cache.json" >/dev/null
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/accounts" >"$LOG_DIR/accounts-during-outage.json"
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/trades?accountId=$ACCOUNT_ID&page=0&size=20" \
+  >"$LOG_DIR/trades-during-outage.json"
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/positions?accountId=$ACCOUNT_ID" \
+  >"$LOG_DIR/positions-during-outage.json"
+jq --exit-status --arg accountId "$ACCOUNT_ID" \
+  'any(.[]; .id == $accountId)' "$LOG_DIR/accounts-during-outage.json" >/dev/null
+jq --exit-status --arg buyId "$BUY_ID" \
+  'any(.items[]; .id == $buyId)' "$LOG_DIR/trades-during-outage.json" >/dev/null
+jq --exit-status \
+  'any(.[]; .ticker == "AUDIT" and .quantity == 10)' \
+  "$LOG_DIR/positions-during-outage.json" >/dev/null
+
+set_stub_mode normal
+recovered_quote_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/quote-recovered.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  "$BACKEND_URL/api/market-data/quotes/AUDIT/refresh")"
+assert_response 200 application/json "$recovered_quote_metadata"
+jq --exit-status '
+  .source == "FINNHUB" and
+  .mock == false and
+  .cached == false and
+  .stale == false
+' "$LOG_DIR/quote-recovered.json" >/dev/null
 
 for refresh_number in 1 2; do
   dashboard_metadata="$(curl --silent --show-error \
@@ -409,12 +547,26 @@ compose restart backend
 BACKEND_HOST_PORT="$(published_port backend 8080)"
 BACKEND_URL="http://127.0.0.1:${BACKEND_HOST_PORT}"
 wait_for_health "$BACKEND_URL/api/health"
+restart_quote_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/quote-after-restart.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  "$BACKEND_URL/api/market-data/quotes/AUDIT/refresh")"
+assert_response 200 application/json "$restart_quote_metadata"
+jq --exit-status '
+  .ticker == "AUDIT" and
+  .source == "FINNHUB" and
+  .mock == false and
+  .cached == false and
+  .stale == false
+' "$LOG_DIR/quote-after-restart.json" >/dev/null
 curl --fail --silent --show-error \
   "$BACKEND_URL/api/market-data/quotes/AUDIT" \
-  >"$LOG_DIR/quote-after-restart.json"
+  >"$LOG_DIR/quote-cached-after-restart.json"
 jq --exit-status \
-  '.ticker == "AUDIT" and .cached == true and .mock == true' \
-  "$LOG_DIR/quote-after-restart.json" >/dev/null
+  '.ticker == "AUDIT" and .cached == true and
+   .source == "FINNHUB" and .mock == false and .stale == false' \
+  "$LOG_DIR/quote-cached-after-restart.json" >/dev/null
 curl --fail --silent --show-error \
   "$BACKEND_URL/api/positions?accountId=$ACCOUNT_ID" \
   >"$LOG_DIR/positions-after-restart.json"
@@ -478,4 +630,4 @@ jq --exit-status --argjson expected "$VALID_TOTAL" \
   '.totalElements == $expected' \
   "$LOG_DIR/trades-after-invalid.json" >/dev/null
 
-echo "Compose smoke passed for P&L, MySQL valuation history, Redis MOCK quotes, and trade lifecycle."
+echo "Compose smoke passed for Finnhub stub resilience, Redis stale fallback, P&L, MySQL history, and trade lifecycle."

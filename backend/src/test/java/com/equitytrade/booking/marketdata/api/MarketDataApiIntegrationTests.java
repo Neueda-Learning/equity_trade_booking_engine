@@ -1,6 +1,7 @@
 package com.equitytrade.booking.marketdata.api;
 
 import com.equitytrade.booking.marketdata.domain.MarketDataCache;
+import com.equitytrade.booking.marketdata.domain.MarketDataFailureCategory;
 import com.equitytrade.booking.marketdata.domain.MarketDataProvider;
 import com.equitytrade.booking.marketdata.domain.MarketDataProviderException;
 import org.junit.jupiter.api.Test;
@@ -78,5 +79,41 @@ class MarketDataApiIntegrationTests {
                 .andExpect(jsonPath("$.status").value(503))
                 .andExpect(jsonPath("$.errors.ticker")
                         .value("market data is unavailable for AAPL"));
+    }
+
+    @Test
+    void providerNotFoundReturns404ProblemDetails() throws Exception {
+        when(cache.find(anyString())).thenReturn(Optional.empty());
+        when(provider.fetch(anyString())).thenThrow(
+                new MarketDataProviderException(
+                        MarketDataFailureCategory.NOT_FOUND,
+                        "no data"));
+
+        mockMvc.perform(get("/api/market-data/quotes/AAPL"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title")
+                        .value("Market quote not found"))
+                .andExpect(jsonPath("$.errors.ticker")
+                        .value("no quote exists for AAPL"));
+    }
+
+    @Test
+    void mockProviderStatusIsSafeAndDemoEndpointsAreHidden()
+            throws Exception {
+        mockMvc.perform(get("/api/market-data/provider/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("MOCK"))
+                .andExpect(jsonPath("$.configured").value(true))
+                .andExpect(jsonPath("$.demoControlsEnabled").value(false))
+                .andExpect(jsonPath("$.demoOutageEnabled").value(false))
+                .andExpect(jsonPath("$.lastSuccessAt").doesNotExist())
+                .andExpect(jsonPath("$.lastFailureCategory").doesNotExist());
+
+        mockMvc.perform(get("/api/demo/market-data/outage"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_PROBLEM_JSON));
     }
 }
