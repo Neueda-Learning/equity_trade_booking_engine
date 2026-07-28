@@ -3,6 +3,8 @@ package com.equitytrade.booking.trade.api;
 import com.equitytrade.booking.account.application.AccountConflictException;
 import com.equitytrade.booking.account.application.AccountNotFoundException;
 import com.equitytrade.booking.account.application.AccountUseCaseValidationException;
+import com.equitytrade.booking.marketdata.application.DemoControlsNotFoundException;
+import com.equitytrade.booking.marketdata.application.MarketDataNotFoundException;
 import com.equitytrade.booking.marketdata.application.MarketDataUnavailableException;
 import com.equitytrade.booking.marketdata.application.MarketDataValidationException;
 import com.equitytrade.booking.pnl.application.PnlValidationException;
@@ -140,11 +142,39 @@ public class TradeExceptionHandler {
                 HttpStatus.SERVICE_UNAVAILABLE,
                 MARKET_DATA_UNAVAILABLE_PROBLEM_TYPE,
                 "Market data unavailable",
-                "No market quote is currently available.",
+                unavailableDetail(exception),
                 Map.of(
                         "ticker",
                         "market data is unavailable for "
-                                + exception.ticker()),
+                                + exception.ticker(),
+                        "provider",
+                        unavailableReason(exception)),
+                request);
+    }
+
+    @ExceptionHandler(MarketDataNotFoundException.class)
+    ResponseEntity<ProblemDetail> handleMarketDataNotFound(
+            MarketDataNotFoundException exception,
+            HttpServletRequest request) {
+        return problem(
+                HttpStatus.NOT_FOUND,
+                NOT_FOUND_PROBLEM_TYPE,
+                "Market quote not found",
+                "The provider has no usable quote for the requested ticker.",
+                Map.of("ticker", "no quote exists for " + exception.ticker()),
+                request);
+    }
+
+    @ExceptionHandler(DemoControlsNotFoundException.class)
+    ResponseEntity<ProblemDetail> handleDemoControlsNotFound(
+            DemoControlsNotFoundException exception,
+            HttpServletRequest request) {
+        return problem(
+                HttpStatus.NOT_FOUND,
+                NOT_FOUND_PROBLEM_TYPE,
+                "Demo controls not found",
+                "Demo market data controls are not enabled.",
+                Map.of("demo", "controls are disabled"),
                 request);
     }
 
@@ -203,6 +233,34 @@ public class TradeExceptionHandler {
                 VALIDATION_PROBLEM_DETAIL,
                 errors,
                 request);
+    }
+
+    private String unavailableDetail(
+            MarketDataUnavailableException exception) {
+        return switch (exception.failureCategory()) {
+            case TIMEOUT ->
+                    "The market data provider timed out and no cached quote is available.";
+            case RATE_LIMIT ->
+                    "The market data provider rate limit was reached and no cached quote is available.";
+            case AUTHENTICATION ->
+                    "The market data provider is not correctly configured.";
+            case DEMO_OUTAGE ->
+                    "The DEMO market data outage is enabled and no cached quote is available.";
+            default -> "No market quote is currently available.";
+        };
+    }
+
+    private String unavailableReason(
+            MarketDataUnavailableException exception) {
+        return switch (exception.failureCategory()) {
+            case TIMEOUT -> "provider timeout";
+            case RATE_LIMIT -> "provider rate limit";
+            case SERVER_ERROR -> "provider server error";
+            case AUTHENTICATION -> "provider authentication error";
+            case MALFORMED_RESPONSE -> "provider response was unusable";
+            case DEMO_OUTAGE -> "DEMO outage enabled";
+            default -> "provider unavailable";
+        };
     }
 
     private ResponseEntity<ProblemDetail> problem(

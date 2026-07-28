@@ -132,6 +132,11 @@ function Dashboard() {
       {!loading && dashboard && (
         <>
           <DashboardStatus dashboard={dashboard} />
+          {dashboard.totals.stale && (
+            <p className="notice dashboard-stale-banner" role="status">
+              Cached, stale quotes are being used. Values are not live.
+            </p>
+          )}
           <Kpis dashboard={dashboard} />
           <PositionTable items={dashboard.positions} />
           <HistoryPanel
@@ -240,6 +245,14 @@ function PositionTable({ items }: { items: PositionPnl[] }) {
                     ) : (
                       <div className="quote-flags">
                         {item.mock && <span className="flag">MOCK</span>}
+                        {item.source === 'FINNHUB' && (
+                          <span className="flag">FINNHUB</span>
+                        )}
+                        {item.source === 'FINNHUB' &&
+                          !item.cached &&
+                          !item.stale && (
+                            <span className="flag">LIVE</span>
+                          )}
                         {item.cached && <span className="flag">CACHED</span>}
                         {item.stale && (
                           <span className="flag flag--warning">STALE</span>

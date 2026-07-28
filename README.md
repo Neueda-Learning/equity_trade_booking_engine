@@ -103,6 +103,12 @@ Compose reads:
 | `MARKET_DATA_FRESH_TTL` | `60s` | Duration before a quote is refreshed |
 | `MARKET_DATA_RETENTION_TTL` | `24h` | Redis stale-fallback retention |
 | `MARKET_DATA_MOCK_WINDOW` | `60s` | Deterministic mock price window |
+| `FINNHUB_BASE_URL` | `https://finnhub.io/api/v1` | Finnhub REST API base URL |
+| `FINNHUB_API_KEY` | empty | Local/deployment Finnhub secret; required for `finnhub` |
+| `MARKET_DATA_CONNECT_TIMEOUT_MS` | `1000` | Finnhub connection timeout |
+| `MARKET_DATA_READ_TIMEOUT_MS` | `2000` | Finnhub request timeout |
+| `MARKET_DATA_MAX_ATTEMPTS` | `2` | Total attempts; constrained to 1 or 2 |
+| `MARKET_DATA_DEMO_CONTROLS_ENABLED` | `false` | Expose demo outage controls for Finnhub |
 | `DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED` | `true` | Enable periodic valuation capture |
 | `DASHBOARD_SNAPSHOT_INTERVAL` | `15m` | Delay between scheduled captures |
 | `DASHBOARD_SNAPSHOT_INITIAL_DELAY` | `15m` | Delay before the first scheduled capture |
@@ -181,12 +187,18 @@ SELL and cancellation validation replay BOOKED trades in chronological order,
 so a trade cannot make an account/ticker position negative at any point.
 Positions use weighted average cost and exclude CANCELLED trades.
 
-## Mock Market Data API
+## Market Data providers
 
-The current provider is `mock`. It produces deterministic, positive prices
+The default provider is `mock`. It produces deterministic, positive prices
 with at most six decimal places and always returns `source=MOCK` and
 `mock=true`. These values are generated locally for development and testing;
 they are not live, delayed, or otherwise real market prices.
+
+Set `MARKET_DATA_PROVIDER=finnhub` to use Finnhub. The backend requires a
+non-empty `FINNHUB_API_KEY` at startup and sends it only in the
+`X-Finnhub-Token` header. It is never placed in the URL or returned by the
+status API. Do not put a real key in `.env.example`, Git, CI configuration,
+commands captured in shell history, or issue logs.
 
 Fetch or force-refresh one quote:
 
@@ -204,10 +216,40 @@ curl 'http://localhost:8080/api/market-data/quotes?accountId=00000000-0000-0000-
 
 Redis keys use `market:quote:{TICKER}` and contain JSON quote values only.
 Quotes are fresh for 60 seconds by default and retained for 24 hours so a
-future provider failure can return a clearly marked stale value. Redis is not
-the system of record for accounts, trades, or positions; those remain derived
-from MySQL data. A real external market-data provider still needs to be
-integrated in a future increment.
+provider failure can return a clearly marked stale value. Timeouts and 5xx
+responses have at most one retry; 400/404, authentication failures, 429, and
+malformed responses are not retried. A failed Finnhub request never silently
+falls back to Mock. Redis failures behave like cache misses and do not affect
+Account, Activity, or Position data, which remain in MySQL.
+
+Provider runtime state is available without secrets at:
+
+```bash
+curl http://localhost:8080/api/market-data/provider/status
+```
+
+Optional demo outage controls are disabled by default. When both Finnhub and
+`MARKET_DATA_DEMO_CONTROLS_ENABLED=true` are configured, the UI and
+`/api/demo/market-data/outage` endpoints can simulate an external connection
+failure without deleting Redis data. The switch is in memory and starts
+disabled after every backend restart.
+
+### Safe live Finnhub verification
+
+Export the secret only in your local shell, start the application with the
+Finnhub provider, and run the verification script:
+
+```bash
+export MARKET_DATA_PROVIDER=finnhub
+export FINNHUB_API_KEY='<local secret>'
+docker compose up -d --build
+bash scripts/verify-finnhub-live.sh
+```
+
+The script does not print the key, stores responses only in a temporary
+directory, verifies `source=FINNHUB` and `mock=false`, then confirms the second
+read uses Redis. Automated tests and CI use a local compatible stub and a dummy
+token; they never call Finnhub or require a GitHub secret.
 
 ## P&L Dashboard and valuation history
 
@@ -240,8 +282,9 @@ scheduler records the same scopes periodically without fabricating prior
 history. V5 stores only aggregate valuation snapshots and does not copy trades.
 Clearing Redis therefore removes quote cache entries but not valuation history.
 
-All displayed prices and P&L currently rely on explicit MOCK quotes. They must
-not be interpreted as live portfolio values.
+With the default provider, displayed prices and P&L rely on explicit MOCK
+quotes. With Finnhub configured, the UI distinguishes live, cached, stale, and
+incomplete values; stale prices are never labelled live.
 
 ## Current scope
 
@@ -249,7 +292,9 @@ This increment does not allow short positions. Accounts are deactivated rather
 than deleted, and inactive accounts remain queryable but cannot accept new
 trades. Trades can be cancelled but are never physically deleted. It
 deliberately contains no trade editing, FIFO/LIFO accounting, cash balance,
-realized P&L, real external Market Data integration, fabricated historical
-backfill, ticker market verification, user management, Swagger, or messaging.
-Redis is used only as a disposable mock quote cache. Database schema changes
-are managed by Flyway; Hibernate only validates the schema.
+realized P&L, additional external providers, fabricated historical backfill,
+ticker market verification, user management, Swagger, or messaging.
+It also contains no WebSocket quotes or historical candle API. Redis remains a
+disposable quote cache, never the Account, Trade, Position, or snapshot system
+of record. Database schema changes are managed by Flyway; Hibernate only
+validates the schema.

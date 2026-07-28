@@ -92,6 +92,41 @@ describe('P&L Dashboard', () => {
     expect(screen.getByText('STALE')).toBeInTheDocument()
     expect(screen.getByText('UNPRICED')).toBeInTheDocument()
     expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(1)
+    expect(
+      screen.getByText('Cached, stale quotes are being used. Values are not live.'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows FINNHUB live without MOCK and never calls stale data live', async () => {
+    const live = {
+      ...position('AAPL', 100, 120, 20, 20),
+      source: 'FINNHUB',
+      mock: false,
+      cached: false,
+      stale: false,
+    }
+    const stale = {
+      ...position('MSFT', 100, 110, 10, 10),
+      source: 'FINNHUB',
+      mock: false,
+      cached: true,
+      stale: true,
+    }
+    vi.stubGlobal(
+      'fetch',
+      routedFetch(
+        dashboard({ positions: [live, stale], stale: true }),
+        history([]),
+      ),
+    )
+
+    render(<Dashboard />)
+
+    await screen.findByText('AAPL')
+    expect(screen.getAllByText('FINNHUB')).toHaveLength(2)
+    expect(screen.getByText('LIVE')).toBeInTheDocument()
+    expect(screen.queryByText('MOCK')).not.toBeInTheDocument()
+    expect(screen.getAllByText('STALE').length).toBeGreaterThan(0)
   })
 
   it('switches history range and renders empty and single-point states', async () => {

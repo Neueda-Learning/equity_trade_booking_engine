@@ -3,6 +3,8 @@ package com.equitytrade.booking.marketdata.application;
 import com.equitytrade.booking.marketdata.domain.MarketDataCache;
 import com.equitytrade.booking.marketdata.domain.MarketDataProvider;
 import com.equitytrade.booking.marketdata.domain.MarketDataProviderException;
+import com.equitytrade.booking.marketdata.domain.MarketDataFailureCategory;
+import com.equitytrade.booking.marketdata.domain.MarketDataProviderState;
 import com.equitytrade.booking.marketdata.domain.MarketQuote;
 import com.equitytrade.booking.marketdata.domain.MarketTicker;
 import com.equitytrade.booking.marketdata.domain.PositionTickerSource;
@@ -21,6 +23,7 @@ public class MarketDataApplicationService {
     private final PositionTickerSource positionTickerSource;
     private final Clock clock;
     private final Duration freshTtl;
+    private final MarketDataProviderState providerState;
 
     public MarketDataApplicationService(
             MarketDataProvider provider,
@@ -28,11 +31,28 @@ public class MarketDataApplicationService {
             PositionTickerSource positionTickerSource,
             Clock clock,
             Duration freshTtl) {
+        this(
+                provider,
+                cache,
+                positionTickerSource,
+                clock,
+                freshTtl,
+                null);
+    }
+
+    public MarketDataApplicationService(
+            MarketDataProvider provider,
+            MarketDataCache cache,
+            PositionTickerSource positionTickerSource,
+            Clock clock,
+            Duration freshTtl,
+            MarketDataProviderState providerState) {
         this.provider = provider;
         this.cache = cache;
         this.positionTickerSource = positionTickerSource;
         this.clock = clock;
         this.freshTtl = freshTtl;
+        this.providerState = providerState;
     }
 
     public MarketQuoteView quote(String rawTicker) {
@@ -54,7 +74,12 @@ public class MarketDataApplicationService {
         Optional<MarketQuote> cachedQuote = cache.find(ticker);
         if (!forceRefresh
                 && cachedQuote.filter(this::isFresh).isPresent()) {
-            return MarketQuoteView.from(cachedQuote.orElseThrow(), true, false);
+            MarketQuote quote = cachedQuote.orElseThrow();
+            boolean stale = providerState != null
+                    && providerState.hasFailureAfter(
+                            ticker,
+                            quote.fetchedAt());
+            return MarketQuoteView.from(quote, true, stale);
         }
         try {
             MarketQuote fetched = provider.fetch(ticker);
@@ -63,11 +88,17 @@ public class MarketDataApplicationService {
         } catch (MarketDataProviderException exception) {
             return cachedQuote
                     .map(quote -> MarketQuoteView.from(quote, true, true))
-                    .orElseThrow(() ->
-                            new MarketDataUnavailableException(
-                                    ticker,
-                                    exception));
+                    .orElseThrow(() -> missing(ticker, exception));
         }
+    }
+
+    private RuntimeException missing(
+            String ticker,
+            MarketDataProviderException exception) {
+        if (exception.category() == MarketDataFailureCategory.NOT_FOUND) {
+            return new MarketDataNotFoundException(ticker, exception);
+        }
+        return new MarketDataUnavailableException(ticker, exception);
     }
 
     private boolean isFresh(MarketQuote quote) {

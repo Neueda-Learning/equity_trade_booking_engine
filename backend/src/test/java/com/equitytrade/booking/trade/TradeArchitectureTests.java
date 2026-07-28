@@ -51,6 +51,18 @@ class TradeArchitectureTests {
                             "..marketdata.infrastructure..");
 
     @ArchTest
+    static final ArchRule market_data_core_does_not_depend_on_http_or_finnhub =
+            noClasses()
+                    .that().resideInAnyPackage(
+                            "..marketdata.domain..",
+                            "..marketdata.application..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "java.net.http..",
+                            "org.springframework.web.client..",
+                            "org.springframework.web.reactive.function.client..",
+                            "..marketdata.infrastructure.provider..");
+
+    @ArchTest
     static final ArchRule pnl_domain_is_framework_independent =
             noClasses()
                     .that().resideInAPackage("..pnl.domain..")

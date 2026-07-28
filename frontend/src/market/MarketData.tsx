@@ -1,11 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
   ApiProblemError,
+  disableDemoMarketDataOutage,
+  enableDemoMarketDataOutage,
   getAccounts,
+  getDemoMarketDataOutage,
+  getMarketDataProviderStatus,
   getMarketQuote,
   getMarketQuotes,
   refreshMarketQuote,
   type Account,
+  type DemoOutage,
+  type MarketDataProviderStatus,
   type MarketQuote,
 } from '../api'
 import './MarketData.css'
@@ -14,6 +20,9 @@ function MarketData() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState('')
   const [quotes, setQuotes] = useState<MarketQuote[]>([])
+  const [providerStatus, setProviderStatus] =
+    useState<MarketDataProviderStatus | null>(null)
+  const [demoOutage, setDemoOutage] = useState<DemoOutage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [unavailable, setUnavailable] = useState(false)
@@ -21,16 +30,30 @@ function MarketData() {
   const [searching, setSearching] = useState(false)
   const [searchResult, setSearchResult] = useState<MarketQuote | null>(null)
   const [refreshingTicker, setRefreshingTicker] = useState<string | null>(null)
+  const [demoChanging, setDemoChanging] = useState(false)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
-    getAccounts(controller.signal)
-      .then(setAccounts)
-      .catch((reason: unknown) => {
-        if (!(reason instanceof DOMException && reason.name === 'AbortError')) {
-          setError('Accounts are unavailable.')
+    Promise.all([
+      getAccounts(controller.signal),
+      getMarketDataProviderStatus(controller.signal),
+    ])
+      .then(([loadedAccounts, status]) => {
+        setAccounts(loadedAccounts)
+        setProviderStatus(status)
+        if (status.demoControlsEnabled) {
+          void getDemoMarketDataOutage(controller.signal)
+            .then(setDemoOutage)
+            .catch((reason: unknown) => {
+              if (!isAbort(reason)) {
+                setError('Demo controls are unavailable.')
+              }
+            })
         }
+      })
+      .catch((reason: unknown) => {
+        if (!isAbort(reason)) setError('Market data status is unavailable.')
       })
     return () => controller.abort()
   }, [])
@@ -47,9 +70,10 @@ function MarketData() {
   }, [accountId])
 
   function handleError(reason: unknown) {
-    if (reason instanceof DOMException && reason.name === 'AbortError') return
+    if (isAbort(reason)) return
     if (reason instanceof ApiProblemError && reason.problem.status === 503) {
       setUnavailable(true)
+      setError(providerError(reason))
       return
     }
     setError(
@@ -57,6 +81,10 @@ function MarketData() {
         ? reason.problem.detail ?? reason.message
         : 'Market data could not be loaded.',
     )
+  }
+
+  async function reloadProviderStatus() {
+    setProviderStatus(await getMarketDataProviderStatus())
   }
 
   async function submitSearch(event: FormEvent) {
@@ -67,6 +95,7 @@ function MarketData() {
     setSearchResult(null)
     try {
       setSearchResult(await getMarketQuote(search))
+      await reloadProviderStatus()
     } catch (reason) {
       handleError(reason)
     } finally {
@@ -89,11 +118,33 @@ function MarketData() {
       if (searchResult?.ticker === refreshed.ticker) {
         setSearchResult(refreshed)
       }
-      setMessage(`${refreshed.ticker} mock quote refreshed.`)
+      setMessage(
+        `${refreshed.ticker} ${refreshed.source} quote refreshed.`,
+      )
+      await reloadProviderStatus()
+    } catch (reason) {
+      handleError(reason)
+      await reloadProviderStatus().catch(() => undefined)
+    } finally {
+      setRefreshingTicker(null)
+    }
+  }
+
+  async function setOutage(enabled: boolean) {
+    setDemoChanging(true)
+    setError('')
+    setMessage('')
+    try {
+      const status = enabled
+        ? await enableDemoMarketDataOutage()
+        : await disableDemoMarketDataOutage()
+      setDemoOutage(status)
+      await reloadProviderStatus()
+      setMessage(status.message)
     } catch (reason) {
       handleError(reason)
     } finally {
-      setRefreshingTicker(null)
+      setDemoChanging(false)
     }
   }
 
@@ -103,10 +154,7 @@ function MarketData() {
       <div className="market-heading">
         <div>
           <h2 id="market-heading">Market Data</h2>
-          <p className="mock-disclosure">
-            MOCK DATA — generated locally for development and testing. This is
-            not live market data.
-          </p>
+          <ProviderDisclosure status={providerStatus} />
         </div>
         <label>
           Account
@@ -130,6 +178,14 @@ function MarketData() {
         </label>
       </div>
 
+      {providerStatus?.demoControlsEnabled && demoOutage && (
+        <DemoControls
+          outage={demoOutage}
+          changing={demoChanging}
+          onChange={setOutage}
+        />
+      )}
+
       <form className="market-search" onSubmit={submitSearch}>
         <label>
           Ticker search
@@ -150,10 +206,10 @@ function MarketData() {
       {loading && <p className="table-state">Loading market data…</p>}
       {unavailable && (
         <p className="table-state table-state--error" role="alert">
-          Market data is currently unavailable.
+          {error || 'Market data is currently unavailable.'}
         </p>
       )}
-      {error && (
+      {!unavailable && error && (
         <p className="table-state table-state--error" role="alert">
           {error}
         </p>
@@ -185,6 +241,74 @@ function MarketData() {
   )
 }
 
+function ProviderDisclosure({
+  status,
+}: {
+  status: MarketDataProviderStatus | null
+}) {
+  if (!status) {
+    return <p className="provider-disclosure">Loading provider status…</p>
+  }
+  if (status.provider === 'MOCK') {
+    return (
+      <p className="provider-disclosure provider-disclosure--mock">
+        <strong>MOCK</strong> — generated locally; not live market data.
+      </p>
+    )
+  }
+  return (
+    <div className="provider-disclosure provider-disclosure--live">
+      <strong>FINNHUB</strong>
+      <span>Live provider configured</span>
+      {status.lastSuccessAt && (
+        <span>
+          Last provider success{' '}
+          {new Date(status.lastSuccessAt).toLocaleString()}
+        </span>
+      )}
+      {status.lastFailureCategory && (
+        <span>Last failure: {friendlyCategory(status.lastFailureCategory)}</span>
+      )}
+    </div>
+  )
+}
+
+function DemoControls({
+  outage,
+  changing,
+  onChange,
+}: {
+  outage: DemoOutage
+  changing: boolean
+  onChange: (enabled: boolean) => Promise<void>
+}) {
+  return (
+    <div className="demo-controls">
+      <div>
+        <strong>Demo Only</strong>
+        <span>
+          Provider outage: {outage.enabled ? 'SIMULATED' : 'OFF'}
+        </span>
+      </div>
+      <button
+        type="button"
+        disabled={changing || outage.enabled}
+        onClick={() => void onChange(true)}
+      >
+        {changing ? 'Changing…' : 'Simulate outage'}
+      </button>
+      <button
+        type="button"
+        className="button-secondary"
+        disabled={changing || !outage.enabled}
+        onClick={() => void onChange(false)}
+      >
+        Restore provider
+      </button>
+    </div>
+  )
+}
+
 function QuoteTable({
   quotes,
   refreshingTicker,
@@ -204,7 +328,8 @@ function QuoteTable({
             <th>Previous close</th>
             <th>Change</th>
             <th>Change %</th>
-            <th>Fetched</th>
+            <th>Quote time</th>
+            <th>Updated</th>
             <th>Labels</th>
             <th>Action</th>
           </tr>
@@ -217,9 +342,17 @@ function QuoteTable({
               <td>{formatNumber(quote.previousClose)}</td>
               <td>{formatSigned(quote.change)}</td>
               <td>{formatSigned(quote.changePercent)}%</td>
-              <td>{new Date(quote.fetchedAt).toLocaleString()}</td>
+              <td>{new Date(quote.marketTimestamp).toLocaleString()}</td>
+              <td>
+                {quote.stale ? 'Last successful update ' : ''}
+                {new Date(quote.fetchedAt).toLocaleString()}
+              </td>
               <td>
                 <div className="quote-labels">
+                  <span>{quote.source}</span>
+                  {quote.source === 'FINNHUB' &&
+                    !quote.cached &&
+                    !quote.stale && <span className="label-live">LIVE</span>}
                   {quote.mock && <span>MOCK</span>}
                   {quote.cached && <span>CACHED</span>}
                   {quote.stale && <span className="label-warning">STALE</span>}
@@ -243,6 +376,28 @@ function QuoteTable({
       </table>
     </div>
   )
+}
+
+function providerError(error: ApiProblemError) {
+  const reason = error.problem.errors?.provider
+  if (reason === 'provider timeout') {
+    return 'Live market data timed out and no cached quote is available.'
+  }
+  if (reason === 'provider rate limit') {
+    return 'The live provider rate limit was reached. Try again later.'
+  }
+  if (reason === 'DEMO outage enabled') {
+    return 'Demo outage is enabled and no cached quote is available.'
+  }
+  return error.problem.detail ?? 'Market data is currently unavailable.'
+}
+
+function friendlyCategory(category: string) {
+  return category.toLowerCase().replaceAll('_', ' ')
+}
+
+function isAbort(reason: unknown) {
+  return reason instanceof DOMException && reason.name === 'AbortError'
 }
 
 function formatNumber(value: number) {

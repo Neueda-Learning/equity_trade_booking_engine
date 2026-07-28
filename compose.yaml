@@ -41,6 +41,29 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  finnhub-stub:
+    profiles: ["ci-finnhub"]
+    image: ${FINNHUB_STUB_IMAGE:-equity-finnhub-stub:ci}
+    build:
+      context: ./scripts
+      dockerfile: finnhub-stub.Dockerfile
+    environment:
+      FINNHUB_STUB_TOKEN: ${FINNHUB_STUB_TOKEN:-ci-finnhub-dummy-token}
+    ports:
+      - "${FINNHUB_STUB_HOST_PORT:-0}:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=1)",
+        ]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+      start_period: 2s
+
   backend:
     image: ${BACKEND_IMAGE:-equity-booking-backend:walking-skeleton}
     build:
@@ -54,6 +77,12 @@ services:
       MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}
       MARKET_DATA_FRESH_TTL: ${MARKET_DATA_FRESH_TTL:-60s}
       MARKET_DATA_RETENTION_TTL: ${MARKET_DATA_RETENTION_TTL:-24h}
+      FINNHUB_BASE_URL: ${FINNHUB_BASE_URL:-https://finnhub.io/api/v1}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      MARKET_DATA_CONNECT_TIMEOUT_MS: ${MARKET_DATA_CONNECT_TIMEOUT_MS:-1000}
+      MARKET_DATA_READ_TIMEOUT_MS: ${MARKET_DATA_READ_TIMEOUT_MS:-2000}
+      MARKET_DATA_MAX_ATTEMPTS: ${MARKET_DATA_MAX_ATTEMPTS:-2}
+      MARKET_DATA_DEMO_CONTROLS_ENABLED: ${MARKET_DATA_DEMO_CONTROLS_ENABLED:-false}
       DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED: ${DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED:-true}
       DASHBOARD_SNAPSHOT_INTERVAL: ${DASHBOARD_SNAPSHOT_INTERVAL:-15m}
       DASHBOARD_SNAPSHOT_INITIAL_DELAY: ${DASHBOARD_SNAPSHOT_INITIAL_DELAY:-15m}

@@ -31,6 +31,12 @@ market-data:
   fresh-ttl: ${MARKET_DATA_FRESH_TTL:60s}
   retention-ttl: ${MARKET_DATA_RETENTION_TTL:24h}
   mock-window: ${MARKET_DATA_MOCK_WINDOW:60s}
+  finnhub-base-url: ${FINNHUB_BASE_URL:https://finnhub.io/api/v1}
+  finnhub-api-key: ${FINNHUB_API_KEY:}
+  connect-timeout: ${MARKET_DATA_CONNECT_TIMEOUT_MS:1000}ms
+  read-timeout: ${MARKET_DATA_READ_TIMEOUT_MS:2000}ms
+  max-attempts: ${MARKET_DATA_MAX_ATTEMPTS:2}
+  demo-controls-enabled: ${MARKET_DATA_DEMO_CONTROLS_ENABLED:false}
 
 dashboard:
   snapshots:

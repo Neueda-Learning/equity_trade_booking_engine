@@ -12,6 +12,17 @@ describe('application navigation', () => {
         const url = String(input)
         if (url === '/api/health') return response({ status: 'UP' })
         if (url === '/api/accounts') return response([])
+        if (url === '/api/market-data/provider/status') {
+          return response({
+            provider: 'MOCK',
+            configured: true,
+            demoControlsEnabled: false,
+            demoOutageEnabled: false,
+            lastSuccessAt: null,
+            lastFailureAt: null,
+            lastFailureCategory: null,
+          })
+        }
         if (url.startsWith('/api/dashboard/history')) {
           return response({ range: '30D', items: [] })
         }
