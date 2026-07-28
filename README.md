@@ -1,3 +1,7 @@
+# Project name:
+# Group number:
+# Group: Give me five
+
 # Equity Trade Booking Engine
 
 This repository contains a modular monolith with a runnable Walking Skeleton
