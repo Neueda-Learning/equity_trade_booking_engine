@@ -70,6 +70,12 @@
   background: #f0fdf4;
 }
 
+.field-error {
+  color: #b91c1c;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .field-wide,
 .trade-form button {
   grid-column: 1 / -1;

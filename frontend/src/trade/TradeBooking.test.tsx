@@ -86,13 +86,14 @@ describe('BUY trade booking', () => {
       .mockResolvedValueOnce(
         response(
           {
-            message: 'Trade validation failed',
-            fieldErrors: [
-              {
-                field: 'executedAt',
-                message: 'must not be more than 60 seconds in the future',
-              },
-            ],
+            type: 'urn:equity-trade:problem:validation',
+            title: 'Request validation failed',
+            status: 400,
+            detail: 'One or more fields are invalid.',
+            instance: '/api/trades',
+            errors: {
+              executedAt: 'must not be more than 60 seconds in the future',
+            },
           },
           false,
           400,
@@ -107,12 +108,44 @@ describe('BUY trade booking', () => {
       screen.getByRole('button', { name: 'Book BUY trade' }).closest('form')!,
     )
 
-    expect(
-      await screen.findByText(
-        'executedAt: must not be more than 60 seconds in the future',
-      ),
-    ).toBeInTheDocument()
+    const fieldError = await screen.findByText(
+      'must not be more than 60 seconds in the future',
+    )
+    expect(fieldError).toBeInTheDocument()
+    expect(document.querySelector('input[name="executedAt"]')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    )
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows a non-field server error', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(emptyPage))
+      .mockResolvedValueOnce(
+        response(
+          {
+            title: 'Trade service unavailable',
+            status: 503,
+            detail: 'The trade request could not be completed.',
+          },
+          false,
+          503,
+        ),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<TradeBooking />)
+    await screen.findByText('No trades booked yet.')
+    fillRequiredFields()
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Book BUY trade' }).closest('form')!,
+    )
+
+    expect(
+      await screen.findByText('The trade request could not be completed.'),
+    ).toHaveAttribute('role', 'alert')
   })
 
   it('loads the next page of the booking ledger', async () => {

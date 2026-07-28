@@ -18,9 +18,12 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -77,13 +80,14 @@ class TradeApiIntegrationTests {
 
     @Test
     void rejectsSellAndDoesNotPersistIt() throws Exception {
-        mockMvc.perform(post("/api/trades")
+        expectValidationProblem(
+                mockMvc.perform(post("/api/trades")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(validRequest("SELL", "2026-07-28T06:30:00Z")))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("side"))
-                .andExpect(jsonPath("$.fieldErrors[0].message")
-                        .value("only BUY trades are supported"));
+                        .content(validRequest(
+                                "SELL",
+                                "2026-07-28T06:30:00Z"))),
+                "side",
+                "only BUY trades are supported");
 
         mockMvc.perform(get("/api/trades"))
                 .andExpect(status().isOk())
@@ -91,7 +95,7 @@ class TradeApiIntegrationTests {
     }
 
     @Test
-    void rejectsFutureExecutionAndInvalidAmounts() throws Exception {
+    void rejectsInvalidTickerAndZeroQuantityWithoutPersisting() throws Exception {
         mockMvc.perform(post("/api/trades")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -99,16 +103,45 @@ class TradeApiIntegrationTests {
                                   "ticker": "bad ticker!",
                                   "side": "BUY",
                                   "quantity": 0,
-                                  "tradePrice": 1.0000001,
+                                  "tradePrice": 1,
+                                  "executedAt": "2026-07-28T06:30:00Z"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors.ticker")
+                        .value("must match [A-Z][A-Z0-9.-]{0,9}"))
+                .andExpect(jsonPath("$.errors.quantity")
+                        .value("must be greater than 0"));
+
+        mockMvc.perform(get("/api/trades"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    void rejectsExcessPrecisionAndFutureExecution() throws Exception {
+        mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ticker": "AAPL",
+                                  "side": "BUY",
+                                  "quantity": 1.0000001,
+                                  "tradePrice": 10.0000001,
                                   "executedAt": "2026-07-28T06:31:31Z"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors", hasSize(4)))
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("ticker"))
-                .andExpect(jsonPath("$.fieldErrors[1].field").value("quantity"))
-                .andExpect(jsonPath("$.fieldErrors[2].field").value("tradePrice"))
-                .andExpect(jsonPath("$.fieldErrors[3].field").value("executedAt"));
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors.quantity")
+                        .value("must have at most 6 decimal places"))
+                .andExpect(jsonPath("$.errors.tradePrice")
+                        .value("must have at most 6 decimal places"))
+                .andExpect(jsonPath("$.errors.executedAt")
+                        .value("must not be more than 60 seconds in the future"));
     }
 
     @Test
@@ -133,9 +166,10 @@ class TradeApiIntegrationTests {
 
     @Test
     void validatesPaginationParameters() throws Exception {
-        mockMvc.perform(get("/api/trades?page=-1&size=101"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("page"));
+        expectValidationProblem(
+                mockMvc.perform(get("/api/trades?page=0&size=101")),
+                "size",
+                "must be between 1 and 100");
     }
 
     private void book(String ticker, String executedAt) throws Exception {
@@ -163,6 +197,28 @@ class TradeApiIntegrationTests {
                   "executedAt": "%s"
                 }
                 """.formatted(side, executedAt);
+    }
+
+    private void expectValidationProblem(
+            org.springframework.test.web.servlet.ResultActions result,
+            String field,
+            String message) throws Exception {
+        result.andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type")
+                        .value("urn:equity-trade:problem:validation"))
+                .andExpect(jsonPath("$.title")
+                        .value("Request validation failed"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail")
+                        .value("One or more fields are invalid."))
+                .andExpect(jsonPath("$.instance").value("/api/trades"))
+                .andExpect(jsonPath("$.errors." + field).value(message))
+                .andExpect(content().string(not(containsString("java."))))
+                .andExpect(content().string(not(containsString("Exception"))))
+                .andExpect(content().string(not(containsString("SELECT "))))
+                .andExpect(content().string(not(containsString("INSERT "))));
     }
 
     @TestConfiguration

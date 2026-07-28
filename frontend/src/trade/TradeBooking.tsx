@@ -20,12 +20,10 @@ interface TradePage {
   totalPages: number
 }
 
-interface ApiError {
-  message?: string
-  fieldErrors?: Array<{
-    field: string
-    message: string
-  }>
+interface ProblemDetails {
+  title?: string
+  detail?: string
+  errors?: Record<string, string>
 }
 
 const PAGE_SIZE = 10
@@ -36,13 +34,12 @@ function currentLocalDateTime() {
   return local.toISOString().slice(0, 16)
 }
 
-function formatApiError(error: ApiError) {
-  if (error.fieldErrors?.length) {
-    return error.fieldErrors
-      .map((fieldError) => `${fieldError.field}: ${fieldError.message}`)
-      .join(' · ')
-  }
-  return error.message ?? 'The trade request could not be completed.'
+function formatApiError(error: ProblemDetails) {
+  return (
+    error.detail ??
+    error.title ??
+    'The trade request could not be completed.'
+  )
 }
 
 function TradeBooking() {
@@ -58,6 +55,7 @@ function TradeBooking() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitMessage, setSubmitMessage] = useState('')
   const [submitError, setSubmitError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const controller = new AbortController()
@@ -98,6 +96,7 @@ function TradeBooking() {
     setIsSubmitting(true)
     setSubmitError('')
     setSubmitMessage('')
+    setFieldErrors({})
 
     try {
       const body = `{
@@ -112,9 +111,14 @@ function TradeBooking() {
         headers: { 'Content-Type': 'application/json' },
         body,
       })
-      const payload = (await response.json()) as Trade | ApiError
+      const payload = (await response.json()) as Trade | ProblemDetails
       if (!response.ok) {
-        setSubmitError(formatApiError(payload as ApiError))
+        const problem = payload as ProblemDetails
+        const errors = problem.errors ?? {}
+        setFieldErrors(errors)
+        if (Object.keys(errors).length === 0) {
+          setSubmitError(formatApiError(problem))
+        }
         return
       }
 
@@ -153,12 +157,32 @@ function TradeBooking() {
               pattern="[A-Za-z][A-Za-z0-9.-]{0,9}"
               placeholder="AAPL"
               required
+              aria-invalid={Boolean(fieldErrors.ticker)}
+              aria-describedby={
+                fieldErrors.ticker ? 'ticker-error' : undefined
+              }
             />
+            {fieldErrors.ticker && (
+              <span id="ticker-error" className="field-error" role="alert">
+                {fieldErrors.ticker}
+              </span>
+            )}
           </label>
 
           <label>
             Side
-            <input name="side" value="BUY" readOnly />
+            <input
+              name="side"
+              value="BUY"
+              readOnly
+              aria-invalid={Boolean(fieldErrors.side)}
+              aria-describedby={fieldErrors.side ? 'side-error' : undefined}
+            />
+            {fieldErrors.side && (
+              <span id="side-error" className="field-error" role="alert">
+                {fieldErrors.side}
+              </span>
+            )}
           </label>
 
           <label>
@@ -172,7 +196,16 @@ function TradeBooking() {
               step="0.000001"
               placeholder="10.5"
               required
+              aria-invalid={Boolean(fieldErrors.quantity)}
+              aria-describedby={
+                fieldErrors.quantity ? 'quantity-error' : undefined
+              }
             />
+            {fieldErrors.quantity && (
+              <span id="quantity-error" className="field-error" role="alert">
+                {fieldErrors.quantity}
+              </span>
+            )}
           </label>
 
           <label>
@@ -186,7 +219,16 @@ function TradeBooking() {
               step="0.000001"
               placeholder="195.25"
               required
+              aria-invalid={Boolean(fieldErrors.tradePrice)}
+              aria-describedby={
+                fieldErrors.tradePrice ? 'trade-price-error' : undefined
+              }
             />
+            {fieldErrors.tradePrice && (
+              <span id="trade-price-error" className="field-error" role="alert">
+                {fieldErrors.tradePrice}
+              </span>
+            )}
           </label>
 
           <label className="field-wide">
@@ -198,7 +240,16 @@ function TradeBooking() {
               onChange={(event) => setExecutedAt(event.target.value)}
               step="1"
               required
+              aria-invalid={Boolean(fieldErrors.executedAt)}
+              aria-describedby={
+                fieldErrors.executedAt ? 'executed-at-error' : undefined
+              }
             />
+            {fieldErrors.executedAt && (
+              <span id="executed-at-error" className="field-error" role="alert">
+                {fieldErrors.executedAt}
+              </span>
+            )}
           </label>
 
           <button type="submit" disabled={isSubmitting}>
