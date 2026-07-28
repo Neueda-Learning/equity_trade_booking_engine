@@ -18,10 +18,23 @@ describe('system health page', () => {
   it('shows Connected when the backend reports UP', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ status: 'UP' }),
-      }),
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(
+              input === '/api/health'
+                ? { status: 'UP' }
+                : {
+                    items: [],
+                    page: 0,
+                    size: 10,
+                    totalElements: 0,
+                    totalPages: 0,
+                  },
+            ),
+        }),
+      ),
     )
 
     render(<App />)
