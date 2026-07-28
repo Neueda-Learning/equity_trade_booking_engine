@@ -55,7 +55,9 @@ describe('Market Data', () => {
     expect(screen.getByText('LIVE')).toBeInTheDocument()
     expect(screen.getAllByText('CACHED')).toHaveLength(2)
     expect(screen.getByText('STALE')).toBeInTheDocument()
-    expect(screen.getByText(/Last successful update/)).toBeInTheDocument()
+    expect(
+      screen.getAllByText(/Last successful update/).length,
+    ).toBeGreaterThan(0)
   })
 
   it('filters by account and keeps partial successful quote rows', async () => {

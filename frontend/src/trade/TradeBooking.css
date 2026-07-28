@@ -7,6 +7,7 @@
 
 .booking-panel,
 .ledger-panel {
+  min-width: 0;
   padding: 30px;
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -153,7 +154,9 @@
 }
 
 .table-scroll {
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 
 table {

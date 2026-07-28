@@ -11,6 +11,14 @@ import {
   type ValuationHistory,
   type ValuationSnapshot,
 } from '../api'
+import {
+  formatDateTime,
+  formatDecimal,
+  formatMoney,
+  formatNullableMoney,
+  formatSignedMoney,
+  formatSignedPercent,
+} from '../format'
 import './Dashboard.css'
 
 const ranges: HistoryRange[] = ['1D', '7D', '30D', 'ALL']
@@ -154,15 +162,24 @@ function Dashboard() {
 }
 
 function DashboardStatus({ dashboard }: { dashboard: DashboardResponse }) {
+  const sources = Array.from(
+    new Set(
+      dashboard.positions
+        .filter((position) => position.available && position.source)
+        .map((position) => position.source),
+    ),
+  )
+  const source = sources.length > 0 ? sources.join(' + ') : 'NO QUOTES'
   return (
     <div className="dashboard-status">
       <span>
-        Updated{' '}
+        Last updated{' '}
         <time dateTime={dashboard.capturedAt}>
-          {new Date(dashboard.capturedAt).toLocaleString()}
+          {formatDateTime(dashboard.capturedAt)}
         </time>
       </span>
       <div className="quote-flags" aria-label="Quote status">
+        <span className="flag">SOURCE: {source}</span>
         {dashboard.totals.mock && <span className="flag">MOCK</span>}
         {dashboard.quoteStatus.cached > 0 && (
           <span className="flag">CACHED</span>
@@ -170,9 +187,11 @@ function DashboardStatus({ dashboard }: { dashboard: DashboardResponse }) {
         {dashboard.totals.stale && (
           <span className="flag flag--warning">STALE</span>
         )}
+        {!dashboard.totals.stale && <span className="flag">FRESH</span>}
         {!dashboard.totals.complete && (
           <span className="flag flag--warning">INCOMPLETE</span>
         )}
+        {dashboard.totals.complete && <span className="flag">COMPLETE</span>}
       </div>
     </div>
   )
@@ -181,10 +200,10 @@ function DashboardStatus({ dashboard }: { dashboard: DashboardResponse }) {
 function Kpis({ dashboard }: { dashboard: DashboardResponse }) {
   const totals = dashboard.totals
   const cards = [
-    ['Total Market Value', money(totals.totalMarketValue)],
-    ['Total Cost Basis', money(totals.totalCostBasis)],
-    ['Unrealized P&L', signedMoney(totals.totalUnrealizedPnl)],
-    ['Return %', signedPercent(totals.totalPnlPercent)],
+    ['Total Market Value', formatMoney(totals.totalMarketValue)],
+    ['Total Cost Basis', formatMoney(totals.totalCostBasis)],
+    ['Unrealized P&L', formatSignedMoney(totals.totalUnrealizedPnl)],
+    ['Return %', formatSignedPercent(totals.totalPnlPercent)],
     ['Open Positions', String(totals.positionCount)],
     ['Unpriced Positions', String(totals.unpricedPositionCount)],
   ]
@@ -225,18 +244,18 @@ function PositionTable({ items }: { items: PositionPnl[] }) {
               {items.map((item) => (
                 <tr key={item.ticker}>
                   <td><strong>{item.ticker}</strong></td>
-                  <td>{decimal(item.quantity)}</td>
-                  <td>{money(item.averageCost)}</td>
-                  <td>{nullableMoney(item.marketPrice)}</td>
-                  <td>{nullableMoney(item.marketValue)}</td>
+                  <td>{formatDecimal(item.quantity)}</td>
+                  <td>{formatMoney(item.averageCost)}</td>
+                  <td>{formatNullableMoney(item.marketPrice)}</td>
+                  <td>{formatNullableMoney(item.marketValue)}</td>
                   <td className={valueClass(item.unrealizedPnl)}>
                     {item.available
-                      ? signedMoney(item.unrealizedPnl)
+                      ? formatSignedMoney(item.unrealizedPnl)
                       : 'Unavailable'}
                   </td>
                   <td className={valueClass(item.pnlPercent)}>
                     {item.available
-                      ? signedPercent(item.pnlPercent)
+                      ? formatSignedPercent(item.pnlPercent)
                       : 'Unavailable'}
                   </td>
                   <td>
@@ -423,41 +442,6 @@ function tooltip(item: ValuationSnapshot) {
     `Market Value: ${item.totalMarketValue}`,
     `Unrealized P&L: ${item.unrealizedPnl}`,
   ].join(' · ')
-}
-
-function money(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 6,
-  }).format(value)
-}
-
-function nullableMoney(value: number | null) {
-  return value === null ? 'Unavailable' : money(value)
-}
-
-function decimal(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 6,
-  }).format(value)
-}
-
-function signedMoney(value: number | null) {
-  if (value === null) return 'Unavailable'
-  const prefix = value > 0 ? '+' : value < 0 ? '−' : '±'
-  return `${prefix}${money(Math.abs(value))} ${
-    value > 0 ? 'Gain' : value < 0 ? 'Loss' : 'Flat'
-  }`
-}
-
-function signedPercent(value: number | null) {
-  if (value === null) return 'Unavailable'
-  const prefix = value > 0 ? '+' : value < 0 ? '−' : '±'
-  return `${prefix}${Math.abs(value).toFixed(2)}% ${
-    value > 0 ? 'Gain' : value < 0 ? 'Loss' : 'Flat'
-  }`
 }
 
 function valueClass(value: number | null) {

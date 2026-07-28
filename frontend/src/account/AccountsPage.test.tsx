@@ -100,7 +100,7 @@ describe('Accounts page', () => {
     )
 
     expect(await screen.findByText('AAPL')).toBeInTheDocument()
-    expect(screen.getByText('90')).toBeInTheDocument()
+    expect(screen.getByText('$90.00')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/positions?accountId=taxable',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),

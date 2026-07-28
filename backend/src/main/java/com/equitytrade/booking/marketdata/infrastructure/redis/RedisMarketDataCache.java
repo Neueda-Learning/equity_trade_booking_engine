@@ -41,9 +41,9 @@ public class RedisMarketDataCache implements MarketDataCache {
                             objectMapper.readValue(json, MarketQuote.class));
         } catch (DataAccessException | JsonProcessingException exception) {
             LOGGER.warn(
-                    "Market quote cache read failed for {}",
+                    "Market quote cache read failed for {} ({})",
                     ticker,
-                    exception);
+                    exception.getClass().getSimpleName());
             return Optional.empty();
         }
     }
@@ -57,9 +57,9 @@ public class RedisMarketDataCache implements MarketDataCache {
                     retentionTtl);
         } catch (DataAccessException | JsonProcessingException exception) {
             LOGGER.warn(
-                    "Market quote cache write failed for {}",
+                    "Market quote cache write failed for {} ({})",
                     quote.ticker(),
-                    exception);
+                    exception.getClass().getSimpleName());
         }
     }
 

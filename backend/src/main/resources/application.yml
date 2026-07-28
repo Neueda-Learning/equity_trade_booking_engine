@@ -26,6 +26,14 @@ spring:
       repositories:
         enabled: false
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
 market-data:
   provider: ${MARKET_DATA_PROVIDER:mock}
   fresh-ttl: ${MARKET_DATA_FRESH_TTL:60s}
