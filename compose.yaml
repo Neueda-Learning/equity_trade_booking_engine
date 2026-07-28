@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: equity-booking-backend:walking-skeleton
+    image: ${BACKEND_IMAGE:-equity-booking-backend:walking-skeleton}
     build:
       context: ./backend
     environment:
@@ -52,7 +52,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: equity-booking-frontend:walking-skeleton
+    image: ${FRONTEND_IMAGE:-equity-booking-frontend:walking-skeleton}
     build:
       context: ./frontend
     ports:

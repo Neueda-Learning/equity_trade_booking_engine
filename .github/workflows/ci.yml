@@ -2,14 +2,24 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: backend
@@ -20,11 +30,33 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: Test backend
-        run: ./mvnw test
+      - name: Test backend with MySQL integration tests
+        run: ./mvnw --batch-mode --no-transfer-progress verify -Pintegration
+      - name: Require executed Failsafe tests
+        run: |
+          python3 -c '
+          import glob
+          import sys
+          import xml.etree.ElementTree as ET
+          reports = glob.glob("target/failsafe-reports/TEST-*.xml")
+          count = sum(int(ET.parse(report).getroot().attrib["tests"]) for report in reports)
+          print(f"Failsafe integration tests executed: {count}")
+          sys.exit(0 if reports and count > 0 else 1)
+          '
+      - name: Upload backend test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: |
+            backend/target/surefire-reports/
+            backend/target/failsafe-reports/
+          if-no-files-found: warn
+          retention-days: 7
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -39,12 +71,48 @@ jobs:
         run: npm ci
       - name: Test frontend
         run: npm test -- --run
+      - name: Lint frontend
+        run: npm run lint
       - name: Build frontend
         run: npm run build
 
-  compose:
+  compose-smoke:
+    needs:
+      - backend
+      - frontend
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Validate Docker Compose
         run: docker compose config
+      - name: Run isolated Compose smoke test
+        env:
+          CI: "true"
+        run: bash scripts/ci-smoke.sh
+      - name: Upload Compose smoke diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-smoke-diagnostics
+          path: ${{ runner.temp }}/equity-compose-smoke/
+          if-no-files-found: warn
+          retention-days: 7
+
+  quality-gate:
+    needs:
+      - backend
+      - frontend
+      - compose-smoke
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every quality job to succeed
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          COMPOSE_RESULT: ${{ needs['compose-smoke'].result }}
+        run: |
+          test "$BACKEND_RESULT" = "success"
+          test "$FRONTEND_RESULT" = "success"
+          test "$COMPOSE_RESULT" = "success"
