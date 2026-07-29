@@ -1,14 +1,18 @@
-import { useId, useState, type ChangeEvent } from 'react'
+import { useId, useRef, useState, type ChangeEvent } from 'react'
 import {
   ApiProblemError,
+  completeTradeImport,
   createTrade,
+  registerTradeImport,
   type Account,
+  type TradeImportRegistration,
 } from '../api'
 import { formatDateTime, formatDecimal, formatMoney } from '../format'
 import { useI18n } from '../i18n'
 import {
   MAX_TRADE_CSV_FILE_BYTES,
   parseTradeCsv,
+  tradeCsvContentHash,
   type PreparedTradeCsvRow,
   type TradeCsvIssue,
 } from './tradeCsv'
@@ -34,14 +38,18 @@ function TradeCsvImport({
 }) {
   const { locale, t } = useI18n()
   const inputId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
   const [expanded, setExpanded] = useState(false)
   const [fileName, setFileName] = useState('')
   const [rows, setRows] = useState<PreparedTradeCsvRow[]>([])
+  const [contentHash, setContentHash] = useState('')
   const [issues, setIssues] = useState<TradeCsvIssue[]>([])
   const [fileError, setFileError] = useState('')
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<ImportResult | null>(null)
+  const [duplicate, setDuplicate] =
+    useState<TradeImportRegistration | null>(null)
 
   async function selectFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -50,9 +58,11 @@ function TradeCsvImport({
 
     setFileName(file.name)
     setRows([])
+    setContentHash('')
     setIssues([])
     setFileError('')
     setResult(null)
+    setDuplicate(null)
     if (
       !file.name.toLowerCase().endsWith('.csv')
       || file.size > MAX_TRADE_CSV_FILE_BYTES
@@ -63,17 +73,49 @@ function TradeCsvImport({
 
     try {
       const parsed = parseTradeCsv(await file.text(), accounts)
+      const hash = parsed.rows.length > 0
+        ? await tradeCsvContentHash(parsed.rows)
+        : ''
       setRows(parsed.rows)
       setIssues(parsed.issues)
+      setContentHash(hash)
     } catch {
       setFileError(t('trade.csvReadFailed'))
     }
   }
 
-  async function importTrades() {
+  async function beginImport(repeatConfirmed: boolean) {
     setImporting(true)
     setProgress(0)
     setResult(null)
+    setDuplicate(null)
+    setFileError('')
+    try {
+      const registration = await registerTradeImport({
+        contentHash,
+        fileName,
+        rowCount: rows.length,
+        repeatConfirmed,
+      })
+      await importTrades(registration)
+    } catch (error) {
+      if (
+        error instanceof ApiProblemError
+        && error.problem.status === 409
+        && error.problem.duplicateImport
+      ) {
+        setDuplicate(error.problem.duplicateImport)
+      } else {
+        setFileError(importErrorMessage(
+          error,
+          t('trade.csvRegistrationFailed'),
+        ))
+      }
+      setImporting(false)
+    }
+  }
+
+  async function importTrades(registration: TradeImportRegistration) {
     const failures: ImportFailure[] = []
     let successCount = 0
 
@@ -91,6 +133,15 @@ function TradeCsvImport({
       setProgress(index + 1)
     }
 
+    try {
+      await completeTradeImport(registration.importId, {
+        importCount: registration.importCount,
+        successCount,
+        failureCount: failures.length,
+      })
+    } catch {
+      setFileError(t('trade.csvResultFailed'))
+    }
     setResult({ successCount, failures })
     setImporting(false)
     if (successCount > 0) onImported()
@@ -134,16 +185,32 @@ function TradeCsvImport({
             {t('trade.csvSemantics')}
           </p>
 
-          <label className="csv-file-field" htmlFor={inputId}>
+          <div className="csv-file-field">
             <span>{t('trade.csvFile')}</span>
             <input
+              ref={inputRef}
               id={inputId}
+              className="csv-file-input"
               type="file"
               accept=".csv,text/csv"
+              aria-label={t('trade.csvFile')}
               disabled={importing}
               onChange={(event) => void selectFile(event)}
             />
-          </label>
+            <div className="csv-file-control">
+              <button
+                type="button"
+                className="csv-file-button"
+                disabled={importing}
+                onClick={() => inputRef.current?.click()}
+              >
+                {t('trade.csvChooseFile')}
+              </button>
+              <span className="csv-file-name" aria-live="polite">
+                {fileName || t('trade.csvNoFile')}
+              </span>
+            </div>
+          </div>
 
           {(fileError || issues.length > 0) && (
             <div className="csv-import-alert" role="alert">
@@ -203,12 +270,45 @@ function TradeCsvImport({
                 type="button"
                 className="csv-import-submit"
                 disabled={importing || result !== null}
-                onClick={() => void importTrades()}
+                onClick={() => void beginImport(false)}
               >
                 {importing
                   ? t('trade.csvImporting')
                   : t('trade.csvImport', { count: rows.length })}
               </button>
+            </div>
+          )}
+
+          {duplicate && (
+            <div
+              className="csv-import-duplicate"
+              role="alertdialog"
+              aria-labelledby="csv-duplicate-title"
+              aria-describedby="csv-duplicate-description"
+            >
+              <strong id="csv-duplicate-title">
+                {t('trade.csvDuplicateTitle')}
+              </strong>
+              <p id="csv-duplicate-description">
+                {t('trade.csvDuplicateMessage', {
+                  date: formatDateTime(duplicate.lastImportedAt, locale),
+                })}
+              </p>
+              <div className="csv-import-duplicate-actions">
+                <button
+                  type="button"
+                  onClick={() => setDuplicate(null)}
+                >
+                  {t('trade.csvDuplicateCancel')}
+                </button>
+                <button
+                  type="button"
+                  className="csv-import-submit"
+                  onClick={() => void beginImport(true)}
+                >
+                  {t('trade.csvDuplicateConfirm')}
+                </button>
+              </div>
             </div>
           )}
 

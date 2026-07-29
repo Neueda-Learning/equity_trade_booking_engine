@@ -11,6 +11,9 @@ import com.equitytrade.booking.marketdata.application.MarketDataValidationExcept
 import com.equitytrade.booking.pnl.application.PnlValidationException;
 import com.equitytrade.booking.trade.application.TradeUseCaseValidationException;
 import com.equitytrade.booking.trade.application.TradeConflictException;
+import com.equitytrade.booking.trade.application.TradeImportDuplicateException;
+import com.equitytrade.booking.trade.application.TradeImportNotFoundException;
+import com.equitytrade.booking.trade.application.TradeImportValidationException;
 import com.equitytrade.booking.trade.application.TradeNotFoundException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -101,6 +104,48 @@ public class TradeExceptionHandler {
                 "Request conflict",
                 "The request conflicts with the current position.",
                 Map.of(exception.field(), exception.reason()),
+                request);
+    }
+
+    @ExceptionHandler(TradeImportValidationException.class)
+    ResponseEntity<ProblemDetail> handleTradeImportValidation(
+            TradeImportValidationException exception,
+            HttpServletRequest request) {
+        return badRequest(
+                Map.of(exception.field(), exception.reason()),
+                request);
+    }
+
+    @ExceptionHandler(TradeImportDuplicateException.class)
+    ResponseEntity<ProblemDetail> handleTradeImportDuplicate(
+            TradeImportDuplicateException exception,
+            HttpServletRequest request) {
+        ProblemDetail problem = problemDetail(
+                HttpStatus.CONFLICT,
+                CONFLICT_PROBLEM_TYPE,
+                "CSV table already imported",
+                "This CSV table was imported previously. Confirm to import the complete table again.",
+                Map.of("contentHash", "has already been imported"),
+                request);
+        problem.setProperty(
+                "duplicateImport",
+                TradeImportResponse.from(exception.existingImport()));
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problem);
+    }
+
+    @ExceptionHandler(TradeImportNotFoundException.class)
+    ResponseEntity<ProblemDetail> handleTradeImportNotFound(
+            TradeImportNotFoundException exception,
+            HttpServletRequest request) {
+        return problem(
+                HttpStatus.NOT_FOUND,
+                NOT_FOUND_PROBLEM_TYPE,
+                "Trade import not found",
+                "The requested trade import does not exist.",
+                Map.of("importId", "does not exist"),
                 request);
     }
 
@@ -284,16 +329,31 @@ public class TradeExceptionHandler {
             String detail,
             Map<String, String> errors,
             HttpServletRequest request) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+        ProblemDetail problem = problemDetail(
                 status,
-                detail);
-        problem.setType(type);
-        problem.setTitle(title);
-        problem.setInstance(URI.create(request.getRequestURI()));
-        problem.setProperty("errors", Map.copyOf(errors));
+                type,
+                title,
+                detail,
+                errors,
+                request);
         return ResponseEntity
                 .status(status)
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .body(problem);
+    }
+
+    private ProblemDetail problemDetail(
+            HttpStatus status,
+            URI type,
+            String title,
+            String detail,
+            Map<String, String> errors,
+            HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+        problem.setType(type);
+        problem.setTitle(title);
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("errors", Map.copyOf(errors));
+        return problem;
     }
 }

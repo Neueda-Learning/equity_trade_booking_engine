@@ -159,6 +159,60 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   expect(browserMessages, browserMessages.join('\n')).toEqual([])
 })
 
+test('warns before importing the same CSV table again', async ({
+  page,
+}, testInfo) => {
+  const accountName = `CSV E2E ${testInfo.project.name}`
+  const ticker = testInfo.project.name.startsWith('mobile') ? 'MSFT' : 'AAPL'
+  const executedAt = new Date(Date.now() - 60_000).toISOString()
+  const contents = [
+    'account,ticker,side,quantity,tradePrice,executedAt',
+    `${accountName},${ticker},BUY,1,100,${executedAt}`,
+  ].join('\n')
+
+  await page.goto('/')
+  await navigate(page, 'Accounts')
+  await page.getByLabel('Account name').fill(accountName)
+  await page.getByLabel('Broker').fill('CSV Playwright')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page.getByText(`${accountName} created.`)).toBeVisible()
+
+  await navigate(page, 'Activity')
+  await page.getByRole('button', { name: 'Open importer' }).click()
+  await page.getByLabel('CSV file').setInputFiles({
+    name: 'trades.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(contents),
+  })
+  await page.getByRole('button', { name: 'Import 1 trades' }).click()
+  await expect(page.getByText('Imported 1 trades successfully.')).toBeVisible()
+
+  await page.getByLabel('CSV file').setInputFiles({
+    name: 'renamed.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(contents),
+  })
+  await page.getByRole('button', { name: 'Import 1 trades' }).click()
+  const warning = page.getByRole('alertdialog', {
+    name: 'CSV table already imported',
+  })
+  await expect(warning).toContainText(
+    'This will create another set of trades.',
+  )
+  await warning.getByRole('button', { name: 'Cancel' }).click()
+  await expect(warning).not.toBeVisible()
+  await expect(activityRow(page, accountName, ticker, 'BUY')).toHaveCount(1)
+
+  await page.getByRole('button', { name: 'Import 1 trades' }).click()
+  await page
+    .getByRole('alertdialog', { name: 'CSV table already imported' })
+    .getByRole('button', { name: 'Import again' })
+    .click()
+  await expect(page.getByText('Imported 1 trades successfully.')).toBeVisible()
+  await expect(activityRow(page, accountName, ticker, 'BUY')).toHaveCount(2)
+  await expectNoPageOverflow(page)
+})
+
 async function navigate(
   page: Page,
   name: 'Dashboard' | 'Accounts' | 'Activity' | 'Market Data',

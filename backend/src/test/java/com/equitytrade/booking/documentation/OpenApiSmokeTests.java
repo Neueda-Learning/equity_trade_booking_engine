@@ -50,6 +50,8 @@ class OpenApiSmokeTests {
                 "/api/trades/{id}",
                 "/api/trades/{id}/cancel",
                 "/api/trades/{id}/amend",
+                "/api/trade-imports/registrations",
+                "/api/trade-imports/{importId}/result",
                 "/api/positions",
                 "/api/market-data/instruments/search",
                 "/api/market-data/quotes",

@@ -16,6 +16,9 @@ labelled `MOCK`; Finnhub quotes and Redis fallback values are distinguished as
 
 - Multiple ACTIVE or INACTIVE securities accounts with no physical deletion
 - BUY and SELL booking with verified US stock, ADR, or ETF selection
+- CSV bulk booking with persistent content-based duplicate detection; a repeat
+  import is blocked until the user explicitly confirms creating another full
+  set of trades
 - Audit-preserved Activity amendments and deletion, with separate execution
   and operation timestamps
 - Idempotent cancellation and chronological no-short validation
@@ -56,6 +59,12 @@ All Accounts ──── computed aggregate Positions
 Redis ──── market:quote:{TICKER} only
 MySQL ──── Accounts, Trades, and ValuationSnapshots (systems of record)
 ```
+
+CSV import registrations are stored separately from Trades. Their stable UUID
+is derived from the normalized table content, so renaming the file, reordering
+rows, changing header case, or using equivalent decimal/time formatting does
+not bypass the duplicate warning. The registry records import attempts and
+outcomes but does not replace Trade as the source of truth.
 
 Positions replay BOOKED trades by execution time, operation time, and UUID.
 SELL and cancellation are rejected if any point in the resulting timeline

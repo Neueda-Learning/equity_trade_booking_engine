@@ -3,6 +3,7 @@ import type { Account } from '../api'
 import {
   MAX_TRADE_CSV_ROWS,
   parseTradeCsv,
+  tradeCsvContentHash,
 } from './tradeCsv'
 import sample from './samples/trade-import-demo.csv?raw'
 
@@ -147,4 +148,44 @@ describe('trade CSV parsing', () => {
       'BUY',
     ])
   })
+
+  it('creates the same identity for semantically equivalent tables', async () => {
+    const first = parseTradeCsv(
+      [
+        'account,ticker,side,quantity,tradePrice,executedAt',
+        'Primary Account,AAPL,BUY,10.0,195.2500,2026-07-28T01:30:00Z',
+        `${growth.id},MSFT,SELL,2,210,2026-07-28T03:00:00+00:00`,
+      ].join('\n'),
+      [primary, growth],
+      new Date('2026-07-29T00:00:00Z'),
+    )
+    const reordered = parseTradeCsv(
+      [
+        'TICKER,executedAt,quantity,ACCOUNT,tradePrice,SIDE',
+        'msft,2026-07-28T03:00:00Z,2.000,"Growth, Inc.",210.0,sell',
+        'aapl,2026-07-28T01:30:00+00:00,10,Primary Account,195.25,buy',
+      ].join('\n'),
+      [primary, growth],
+      new Date('2026-07-29T00:00:00Z'),
+    )
+
+    expect(reordered.issues).toEqual([])
+    expect(await tradeCsvContentHash(reordered.rows))
+      .toBe(await tradeCsvContentHash(first.rows))
+  })
+
+  it('changes the table identity when a trade value changes', async () => {
+    const first = parseTradeCsv(validIdentityCsv('10'), [primary])
+    const changed = parseTradeCsv(validIdentityCsv('11'), [primary])
+
+    expect(await tradeCsvContentHash(changed.rows))
+      .not.toBe(await tradeCsvContentHash(first.rows))
+  })
 })
+
+function validIdentityCsv(quantity: string) {
+  return [
+    'account,ticker,side,quantity,tradePrice,executedAt',
+    `Primary Account,AAPL,BUY,${quantity},195.25,2026-07-28T01:30:00Z`,
+  ].join('\n')
+}

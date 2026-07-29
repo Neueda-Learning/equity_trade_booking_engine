@@ -38,11 +38,36 @@ export interface PreparedTradeCsvRow {
   rowNumber: number
   accountName: string
   input: TradeInput
+  identity: {
+    quantity: string
+    tradePrice: string
+    executedAt: string
+  }
 }
 
 export interface TradeCsvParseResult {
   rows: PreparedTradeCsvRow[]
   issues: TradeCsvIssue[]
+}
+
+export async function tradeCsvContentHash(
+  rows: PreparedTradeCsvRow[],
+): Promise<string> {
+  const canonicalRows = rows
+    .map(({ input, identity }) => JSON.stringify({
+      accountId: input.accountId.toLowerCase(),
+      ticker: input.ticker.toUpperCase(),
+      side: input.side.toUpperCase(),
+      quantity: identity.quantity,
+      tradePrice: identity.tradePrice,
+      executedAt: identity.executedAt,
+    }))
+    .sort()
+  const bytes = new TextEncoder().encode(canonicalRows.join('\n'))
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 export function parseTradeCsv(
@@ -176,6 +201,11 @@ export function parseTradeCsv(
         tradePrice: Number(priceText),
         executedAt: executedAtText,
       },
+      identity: {
+        quantity: canonicalAmountText(quantityText),
+        tradePrice: canonicalAmountText(priceText),
+        executedAt: canonicalExecutedAt(executedAtText, executedAt),
+      },
     })
   })
 
@@ -194,6 +224,19 @@ function isValidAmount(value: string) {
   if (!match || match[1].length > 13) return false
   const numeric = Number(value)
   return Number.isFinite(numeric) && numeric > 0
+}
+
+function canonicalAmountText(value: string) {
+  const [integerPart, fractionalPart = ''] = value.split('.')
+  const integer = integerPart.replace(/^0+(?=\d)/, '')
+  const fraction = fractionalPart.replace(/0+$/, '')
+  return fraction ? `${integer}.${fraction}` : integer
+}
+
+function canonicalExecutedAt(value: string, parsed: Date) {
+  const fraction = /\.(\d{1,6})/.exec(value)?.[1]?.replace(/0+$/, '') ?? ''
+  const utcSeconds = parsed.toISOString().slice(0, 19)
+  return fraction ? `${utcSeconds}.${fraction}Z` : `${utcSeconds}Z`
 }
 
 function parseExecutedAt(value: string) {
