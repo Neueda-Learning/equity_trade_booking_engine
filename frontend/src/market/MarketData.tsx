@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   ApiProblemError,
   disableDemoMarketDataOutage,
@@ -19,9 +19,11 @@ import {
   formatDecimal,
   formatSignedDecimal,
 } from '../format'
+import { useI18n } from '../i18n'
 import './MarketData.css'
 
 function MarketData() {
+  const { t } = useI18n()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState('')
   const [quotes, setQuotes] = useState<MarketQuote[]>([])
@@ -38,6 +40,20 @@ function MarketData() {
   const [demoChanging, setDemoChanging] = useState(false)
   const [message, setMessage] = useState('')
 
+  const handleError = useCallback((reason: unknown) => {
+    if (isAbort(reason)) return
+    if (reason instanceof ApiProblemError && reason.problem.status === 503) {
+      setUnavailable(true)
+      setError(providerError(reason, t))
+      return
+    }
+    setError(
+      reason instanceof ApiProblemError
+        ? reason.problem.detail ?? reason.message
+        : t('market.loadFailed'),
+    )
+  }, [t])
+
   useEffect(() => {
     const controller = new AbortController()
     Promise.all([
@@ -52,16 +68,16 @@ function MarketData() {
             .then(setDemoOutage)
             .catch((reason: unknown) => {
               if (!isAbort(reason)) {
-                setError('Demo controls are unavailable.')
+                setError(t('market.controlsUnavailable'))
               }
             })
         }
       })
       .catch((reason: unknown) => {
-        if (!isAbort(reason)) setError('Market data status is unavailable.')
+        if (!isAbort(reason)) setError(t('market.statusUnavailable'))
       })
     return () => controller.abort()
-  }, [])
+  }, [t])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -72,21 +88,7 @@ function MarketData() {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [accountId])
-
-  function handleError(reason: unknown) {
-    if (isAbort(reason)) return
-    if (reason instanceof ApiProblemError && reason.problem.status === 503) {
-      setUnavailable(true)
-      setError(providerError(reason))
-      return
-    }
-    setError(
-      reason instanceof ApiProblemError
-        ? reason.problem.detail ?? reason.message
-        : 'Market data could not be loaded.',
-    )
-  }
+  }, [accountId, handleError])
 
   async function reloadProviderStatus() {
     setProviderStatus(await getMarketDataProviderStatus())
@@ -124,7 +126,10 @@ function MarketData() {
         setSearchResult(refreshed)
       }
       setMessage(
-        `${refreshed.ticker} ${refreshed.source} quote refreshed.`,
+        t('market.refreshed', {
+          ticker: refreshed.ticker,
+          source: refreshed.source,
+        }),
       )
       await reloadProviderStatus()
     } catch (reason) {
@@ -145,7 +150,9 @@ function MarketData() {
         : await disableDemoMarketDataOutage()
       setDemoOutage(status)
       await reloadProviderStatus()
-      setMessage(status.message)
+      setMessage(
+        t(status.enabled ? 'market.outageEnabled' : 'market.outageDisabled'),
+      )
     } catch (reason) {
       handleError(reason)
     } finally {
@@ -155,14 +162,14 @@ function MarketData() {
 
   return (
     <section aria-labelledby="market-heading">
-      <p className="section-kicker">Market Data</p>
+      <p className="section-kicker">{t('market.kicker')}</p>
       <div className="market-heading">
         <div>
-          <h2 id="market-heading">Market Data</h2>
+          <h2 id="market-heading">{t('nav.marketData')}</h2>
           <ProviderDisclosure status={providerStatus} />
         </div>
         <label>
-          Account
+          {t('common.account')}
           <select
             value={accountId}
             onChange={(event) => {
@@ -173,7 +180,7 @@ function MarketData() {
               setSearchResult(null)
             }}
           >
-            <option value="">All Accounts</option>
+            <option value="">{t('common.allAccounts')}</option>
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
@@ -193,7 +200,7 @@ function MarketData() {
 
       <form className="market-search" onSubmit={submitSearch}>
         <label>
-          Ticker search
+          {t('market.searchLabel')}
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -203,15 +210,15 @@ function MarketData() {
           />
         </label>
         <button type="submit" disabled={searching}>
-          {searching ? 'Searching…' : 'Search'}
+          {searching ? t('market.searching') : t('market.search')}
         </button>
       </form>
 
       {message && <p className="notice notice--success">{message}</p>}
-      {loading && <p className="table-state">Loading market data…</p>}
+      {loading && <p className="table-state">{t('market.loading')}</p>}
       {unavailable && (
         <p className="table-state table-state--error" role="alert">
-          {error || 'Market data is currently unavailable.'}
+          {error || t('market.currentlyUnavailable')}
         </p>
       )}
       {!unavailable && error && (
@@ -221,7 +228,7 @@ function MarketData() {
       )}
       {searchResult && (
         <div className="panel market-search-result">
-          <h3>Search result</h3>
+          <h3>{t('market.searchResult')}</h3>
           <QuoteTable
             quotes={[searchResult]}
             refreshingTicker={refreshingTicker}
@@ -230,11 +237,11 @@ function MarketData() {
         </div>
       )}
       {!loading && !error && !unavailable && quotes.length === 0 && (
-        <p className="table-state">No open positions to quote.</p>
+        <p className="table-state">{t('market.noPositions')}</p>
       )}
       {!loading && !error && !unavailable && quotes.length > 0 && (
         <div className="panel">
-          <h3>Position quotes</h3>
+          <h3>{t('market.positionQuotes')}</h3>
           <QuoteTable
             quotes={quotes}
             refreshingTicker={refreshingTicker}
@@ -251,32 +258,38 @@ function ProviderDisclosure({
 }: {
   status: MarketDataProviderStatus | null
 }) {
+  const { locale, t } = useI18n()
   if (!status) {
-    return <p className="provider-disclosure">Loading provider status…</p>
+    return <p className="provider-disclosure">{t('market.providerLoading')}</p>
   }
   if (status.provider === 'MOCK') {
     return (
       <p className="provider-disclosure provider-disclosure--mock">
-        <strong>Source: MOCK</strong> — generated locally; not live market
-        data. Last successful update:{' '}
-        {status.lastSuccessAt
-          ? formatDateTime(status.lastSuccessAt)
-          : 'Not yet'}
+        {t('market.mockDisclosure', {
+          date: status.lastSuccessAt
+            ? formatDateTime(status.lastSuccessAt, locale)
+            : t('common.notYet'),
+        })}
       </p>
     )
   }
   return (
     <div className="provider-disclosure provider-disclosure--live">
-      <strong>Source: FINNHUB</strong>
-      <span>Live provider configured</span>
+      <strong>{t('market.sourceFinnhub')}</strong>
+      <span>{t('market.liveConfigured')}</span>
       <span>
-        Last successful update:{' '}
-        {status.lastSuccessAt
-          ? formatDateTime(status.lastSuccessAt)
-          : 'Not yet'}
+        {t('market.lastSuccessful', {
+          date: status.lastSuccessAt
+            ? formatDateTime(status.lastSuccessAt, locale)
+            : t('common.notYet'),
+        })}
       </span>
       {status.lastFailureCategory && (
-        <span>Last failure: {friendlyCategory(status.lastFailureCategory)}</span>
+        <span>
+          {t('market.lastFailure', {
+            category: friendlyCategory(status.lastFailureCategory),
+          })}
+        </span>
       )}
     </div>
   )
@@ -291,12 +304,15 @@ function DemoControls({
   changing: boolean
   onChange: (enabled: boolean) => Promise<void>
 }) {
+  const { t } = useI18n()
   return (
     <div className="demo-controls">
       <div>
-        <strong>Demo Only</strong>
+        <strong>{t('market.demoOnly')}</strong>
         <span>
-          Provider outage: {outage.enabled ? 'SIMULATED' : 'OFF'}
+          {t('market.outage', {
+            state: outage.enabled ? t('market.simulated') : t('market.off'),
+          })}
         </span>
       </div>
       <button
@@ -304,7 +320,7 @@ function DemoControls({
         disabled={changing || outage.enabled}
         onClick={() => void onChange(true)}
       >
-        {changing ? 'Changing…' : 'Simulate outage'}
+        {changing ? t('market.changing') : t('market.simulate')}
       </button>
       <button
         type="button"
@@ -312,7 +328,7 @@ function DemoControls({
         disabled={changing || !outage.enabled}
         onClick={() => void onChange(false)}
       >
-        Restore provider
+        {t('market.restore')}
       </button>
     </div>
   )
@@ -327,44 +343,49 @@ function QuoteTable({
   refreshingTicker: string | null
   onRefresh: (quote: MarketQuote) => Promise<void>
 }) {
+  const { locale, t } = useI18n()
   return (
     <div className="table-scroll">
       <table>
         <thead>
           <tr>
-            <th>Ticker</th>
-            <th>Price</th>
-            <th>Previous close</th>
-            <th>Change</th>
-            <th>Change %</th>
-            <th>Quote time</th>
-            <th>Updated</th>
-            <th>Labels</th>
-            <th>Action</th>
+            <th>{t('common.ticker')}</th>
+            <th>{t('common.price')}</th>
+            <th>{t('market.previousClose')}</th>
+            <th>{t('market.change')}</th>
+            <th>{t('market.changePercent')}</th>
+            <th>{t('market.quoteTime')}</th>
+            <th>{t('market.updated')}</th>
+            <th>{t('market.labels')}</th>
+            <th>{t('market.action')}</th>
           </tr>
         </thead>
         <tbody>
           {quotes.map((quote) => (
             <tr key={quote.ticker}>
               <td className="ticker-cell">{quote.ticker}</td>
-              <td>{formatDecimal(quote.price)}</td>
-              <td>{formatDecimal(quote.previousClose)}</td>
-              <td>{formatSignedDecimal(quote.change)}</td>
-              <td>{formatSignedDecimal(quote.changePercent)}%</td>
-              <td>{formatDateTime(quote.marketTimestamp)}</td>
+              <td>{formatDecimal(quote.price, locale)}</td>
+              <td>{formatDecimal(quote.previousClose, locale)}</td>
+              <td>{formatSignedDecimal(quote.change, locale)}</td>
+              <td>{formatSignedDecimal(quote.changePercent, locale)}%</td>
+              <td>{formatDateTime(quote.marketTimestamp, locale)}</td>
               <td>
-                {quote.stale ? 'Last successful update ' : ''}
-                {formatDateTime(quote.fetchedAt)}
+                {quote.stale ? t('market.lastSuccessfulPrefix') : ''}
+                {formatDateTime(quote.fetchedAt, locale)}
               </td>
               <td>
                 <div className="quote-labels">
                   <span>{quote.source}</span>
                   {quote.source === 'FINNHUB' &&
                     !quote.cached &&
-                    !quote.stale && <span className="label-live">LIVE</span>}
-                  {quote.mock && <span>MOCK</span>}
-                  {quote.cached && <span>CACHED</span>}
-                  {quote.stale && <span className="label-warning">STALE</span>}
+                    !quote.stale && (
+                      <span className="label-live">{t('status.live')}</span>
+                    )}
+                  {quote.mock && <span>{t('status.mock')}</span>}
+                  {quote.cached && <span>{t('status.cached')}</span>}
+                  {quote.stale && (
+                    <span className="label-warning">{t('status.stale')}</span>
+                  )}
                 </div>
               </td>
               <td>
@@ -375,8 +396,8 @@ function QuoteTable({
                   onClick={() => void onRefresh(quote)}
                 >
                   {refreshingTicker === quote.ticker
-                    ? 'Refreshing…'
-                    : `Refresh ${quote.ticker}`}
+                    ? t('common.refreshing')
+                    : t('market.refreshTicker', { ticker: quote.ticker })}
                 </button>
               </td>
             </tr>
@@ -387,18 +408,21 @@ function QuoteTable({
   )
 }
 
-function providerError(error: ApiProblemError) {
+function providerError(
+  error: ApiProblemError,
+  t: ReturnType<typeof useI18n>['t'],
+) {
   const reason = error.problem.errors?.provider
   if (reason === 'provider timeout') {
-    return 'Live market data timed out and no cached quote is available.'
+    return t('market.timeout')
   }
   if (reason === 'provider rate limit') {
-    return 'The live provider rate limit was reached. Try again later.'
+    return t('market.rateLimit')
   }
   if (reason === 'DEMO outage enabled') {
-    return 'Demo outage is enabled and no cached quote is available.'
+    return t('market.demoNoCache')
   }
-  return error.problem.detail ?? 'Market data is currently unavailable.'
+  return error.problem.detail ?? t('market.currentlyUnavailable')
 }
 
 function friendlyCategory(category: string) {

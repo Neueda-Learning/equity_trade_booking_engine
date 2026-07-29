@@ -21,6 +21,7 @@ import {
   type TradePage,
 } from '../api'
 import { formatDateTime, formatDecimal, formatMoney } from '../format'
+import { localizeApiErrors, localizedStatus, useI18n } from '../i18n'
 import './TradeBooking.css'
 
 const PAGE_SIZE = 20
@@ -38,6 +39,7 @@ function asLocalDateTime(value: string) {
 }
 
 function TradeBooking() {
+  const { language, locale, t } = useI18n()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState('')
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY')
@@ -84,10 +86,10 @@ function TradeBooking() {
         setAccountId((current) => current || firstActive?.id || '')
       })
       .catch((error: unknown) => {
-        if (!isAbort(error)) setServerError('Accounts are unavailable.')
+        if (!isAbort(error)) setServerError(t('trade.accountsUnavailable'))
       })
     return () => controller.abort()
-  }, [refreshVersion])
+  }, [refreshVersion, t])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -99,13 +101,13 @@ function TradeBooking() {
     )
       .then(setTradePage)
       .catch((error: unknown) => {
-        if (!isAbort(error)) setListError('Trade history is unavailable.')
+        if (!isAbort(error)) setListError(t('trade.historyUnavailable'))
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [page, filterAccountId, refreshVersion])
+  }, [page, filterAccountId, refreshVersion, t])
 
   useEffect(() => {
     if (
@@ -131,7 +133,7 @@ function TradeBooking() {
             setInstrumentError(
               error instanceof ApiProblemError
                 ? error.problem.detail ?? error.message
-                : 'Security search is unavailable.',
+                : t('trade.searchUnavailable'),
             )
           }
         })
@@ -143,7 +145,7 @@ function TradeBooking() {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [ticker, selectedInstrument])
+  }, [ticker, selectedInstrument, t])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -155,7 +157,7 @@ function TradeBooking() {
       selectedInstrument.ticker !== ticker.trim().toUpperCase()
     ) {
       setFieldErrors({
-        ticker: 'Select a verified security from the search results.',
+        ticker: t('trade.selectVerified'),
       })
       return
     }
@@ -172,21 +174,30 @@ function TradeBooking() {
       if (editingTrade) {
         const result = await amendTrade(editingTrade.id, input)
         setMessage(
-          `${result.cancelledTrade.ticker} was amended; `
-            + `${result.replacementTrade.ticker} replacement booked.`,
+          t('trade.amended', {
+            ticker: result.cancelledTrade.ticker,
+            replacement: result.replacementTrade.ticker,
+          }),
         )
       } else {
         const trade = await createTrade(input)
-        setMessage(`${trade.ticker} ${trade.side} trade booked successfully.`)
+        setMessage(
+          t('trade.booked', {
+            ticker: trade.ticker,
+            side: localizedStatus(trade.side, t),
+          }),
+        )
       }
       resetForm()
       refreshLedger()
     } catch (error) {
       if (error instanceof ApiProblemError) {
-        setFieldErrors(error.problem.errors ?? {})
+        setFieldErrors(
+          localizeApiErrors(error.problem.errors ?? {}, language),
+        )
         if (!error.problem.errors) setServerError(error.message)
       } else {
-        setServerError('The trade request could not reach the backend.')
+        setServerError(t('trade.requestFailed'))
       }
     } finally {
       setSaving(false)
@@ -195,9 +206,10 @@ function TradeBooking() {
 
   async function remove(trade: Trade) {
     const confirmed = window.confirm(
-      `Delete ${trade.ticker} ${trade.side} activity? `
-        + 'It will be cancelled and retained for audit; '
-        + 'the database record will not be physically removed.',
+      t('trade.deleteConfirm', {
+        ticker: trade.ticker,
+        side: localizedStatus(trade.side, t),
+      }),
     )
     if (!confirmed) return
     setDeletingId(trade.id)
@@ -205,12 +217,12 @@ function TradeBooking() {
     setMessage('')
     try {
       await deleteTrade(trade.id)
-      setMessage('Activity deleted with its audit record preserved.')
+      setMessage(t('trade.deleted'))
       refreshLedger()
     } catch (error) {
       setActivityError(problemMessage(
         error,
-        'The delete request could not reach the backend.',
+        t('trade.deleteFailed'),
       ))
     } finally {
       setDeletingId(null)
@@ -298,25 +310,26 @@ function TradeBooking() {
     <section className="trade-workspace" aria-labelledby="activity-heading">
       <div className="booking-panel">
         <p className="section-kicker">
-          {editingTrade ? 'Amend activity' : 'New activity'}
+          {editingTrade ? t('trade.amendActivity') : t('trade.newActivity')}
         </p>
         <h2 id="activity-heading">
-          {editingTrade ? `Edit ${editingTrade.ticker}` : 'Book a trade'}
+          {editingTrade
+            ? t('trade.editTicker', { ticker: editingTrade.ticker })
+            : t('trade.bookTitle')}
         </h2>
         {editingTrade && (
           <p className="audit-note">
-            Saving creates a replacement trade and preserves the original as
-            CANCELLED for audit.
+            {t('trade.auditNote')}
           </p>
         )}
         {activeAccounts.length === 0 ? (
           <p className="table-state">
-            No active accounts. Create an account before booking a trade.
+            {t('trade.noActiveAccounts')}
           </p>
         ) : (
           <form className="trade-form" onSubmit={submit}>
             <TradeSelect
-              label="Account"
+              label={t('common.account')}
               name="accountId"
               value={accountId}
               error={fieldErrors.accountId}
@@ -329,14 +342,14 @@ function TradeBooking() {
               ))}
             </TradeSelect>
             <TradeSelect
-              label="Side"
+              label={t('trade.side')}
               name="side"
               value={side}
               error={fieldErrors.side}
               onChange={(value) => setSide(value as 'BUY' | 'SELL')}
             >
-              <option value="BUY">BUY</option>
-              <option value="SELL">SELL</option>
+              <option value="BUY">{t('status.buy')}</option>
+              <option value="SELL">{t('status.sell')}</option>
             </TradeSelect>
             <TickerCombobox
               value={ticker}
@@ -352,7 +365,7 @@ function TradeBooking() {
               onSelect={selectInstrument}
             />
             <TradeInput
-              label="Quantity"
+              label={t('common.quantity')}
               name="quantity"
               type="number"
               value={quantity}
@@ -363,7 +376,7 @@ function TradeBooking() {
               required
             />
             <TradeInput
-              label="Trade price (USD)"
+              label={t('trade.priceUsd')}
               name="tradePrice"
               type="number"
               value={tradePrice}
@@ -374,7 +387,7 @@ function TradeBooking() {
               required
             />
             <TradeInput
-              label="Executed at"
+              label={t('trade.executedAt')}
               name="executedAt"
               type="datetime-local"
               value={executedAt}
@@ -387,10 +400,12 @@ function TradeBooking() {
             <div className="trade-form-actions field-wide">
               <button type="submit" disabled={saving || instrumentLoading}>
                 {saving
-                  ? 'Saving…'
+                  ? t('common.saving')
                   : editingTrade
-                    ? 'Save amendment'
-                    : `Book ${side} trade`}
+                    ? t('trade.saveAmendment')
+                    : t('trade.bookSide', {
+                        side: localizedStatus(side, t),
+                      })}
               </button>
               {editingTrade && (
                 <button
@@ -399,7 +414,7 @@ function TradeBooking() {
                   onClick={resetForm}
                   disabled={saving}
                 >
-                  Cancel edit
+                  {t('trade.cancelEdit')}
                 </button>
               )}
             </div>
@@ -418,11 +433,11 @@ function TradeBooking() {
       <div className="ledger-panel">
         <div className="ledger-heading">
           <div>
-            <p className="section-kicker">Trade ledger</p>
-            <h2>Activity</h2>
+            <p className="section-kicker">{t('trade.ledger')}</p>
+            <h2>{t('nav.activity')}</h2>
           </div>
           <label>
-            Account filter
+            {t('trade.accountFilter')}
             <select
               className="activity-select"
               value={filterAccountId}
@@ -433,7 +448,7 @@ function TradeBooking() {
                 setListError('')
               }}
             >
-              <option value="">All accounts</option>
+              <option value="">{t('trade.allAccounts')}</option>
               {accounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name}
@@ -442,7 +457,7 @@ function TradeBooking() {
             </select>
           </label>
         </div>
-        {loading && <p className="table-state">Loading trades…</p>}
+        {loading && <p className="table-state">{t('trade.loading')}</p>}
         {listError && (
           <p className="table-state table-state--error">{listError}</p>
         )}
@@ -452,50 +467,58 @@ function TradeBooking() {
           </p>
         )}
         {!loading && !listError && tradePage?.items.length === 0 && (
-          <p className="table-state">No trades booked yet.</p>
+          <p className="table-state">{t('trade.empty')}</p>
         )}
         {!loading && !listError && tradePage && tradePage.items.length > 0 && (
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Account</th>
-                  <th>Ticker</th>
-                  <th>Side</th>
-                  <th>Quantity</th>
-                  <th>Price (USD)</th>
-                  <th>Executed</th>
-                  <th>Status</th>
-                  <th>Audit</th>
-                  <th>Actions</th>
+                  <th>{t('common.account')}</th>
+                  <th>{t('common.ticker')}</th>
+                  <th>{t('trade.side')}</th>
+                  <th>{t('common.quantity')}</th>
+                  <th>{t('trade.price')}</th>
+                  <th>{t('trade.executed')}</th>
+                  <th>{t('common.status')}</th>
+                  <th>{t('trade.audit')}</th>
+                  <th>{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {tradePage.items.map((trade) => (
                   <tr key={trade.id}>
                     <td>
-                      {accountNames.get(trade.accountId) ?? 'Unknown account'}
+                      {accountNames.get(trade.accountId)
+                        ?? t('common.unknownAccount')}
                     </td>
                     <td className="ticker-cell">{trade.ticker}</td>
                     <td>
                       <span className={`side-pill side-pill--${trade.side.toLowerCase()}`}>
-                        {trade.side}
+                        {localizedStatus(trade.side, t)}
                       </span>
                     </td>
-                    <td>{formatDecimal(trade.quantity)}</td>
-                    <td>{formatMoney(trade.tradePrice)}</td>
-                    <td>{formatDateTime(trade.executedAt)}</td>
+                    <td>{formatDecimal(trade.quantity, locale)}</td>
+                    <td>{formatMoney(trade.tradePrice, locale)}</td>
+                    <td>{formatDateTime(trade.executedAt, locale)}</td>
                     <td>
-                      <span className="status-pill">{trade.status}</span>
+                      <span className="status-pill">
+                        {localizedStatus(trade.status, t)}
+                      </span>
                     </td>
                     <td>
                       {trade.cancelledAt ? (
                         <span className="audit-detail">
-                          {trade.cancellationReason ?? 'CANCELLED'}
-                          <small>{formatDateTime(trade.cancelledAt)}</small>
+                          {localizedStatus(
+                            trade.cancellationReason ?? 'CANCELLED',
+                            t,
+                          )}
+                          <small>
+                            {formatDateTime(trade.cancelledAt, locale)}
+                          </small>
                         </span>
                       ) : trade.supersedesTradeId ? (
-                        'Replacement'
+                        t('trade.replacement')
                       ) : (
                         '—'
                       )}
@@ -509,7 +532,7 @@ function TradeBooking() {
                             onClick={() => edit(trade)}
                             disabled={deletingId === trade.id}
                           >
-                            Edit
+                            {t('common.edit')}
                           </button>
                           <button
                             type="button"
@@ -517,7 +540,9 @@ function TradeBooking() {
                             disabled={deletingId === trade.id}
                             onClick={() => void remove(trade)}
                           >
-                            {deletingId === trade.id ? 'Deleting…' : 'Delete'}
+                            {deletingId === trade.id
+                              ? t('trade.deleting')
+                              : t('common.delete')}
                           </button>
                         </div>
                       ) : (
@@ -531,7 +556,7 @@ function TradeBooking() {
           </div>
         )}
         {tradePage && tradePage.totalPages > 1 && (
-          <nav className="pagination" aria-label="Trade pages">
+          <nav className="pagination" aria-label={t('trade.pages')}>
             <button
               type="button"
               onClick={() => {
@@ -540,9 +565,14 @@ function TradeBooking() {
               }}
               disabled={page === 0}
             >
-              Previous
+              {t('common.previous')}
             </button>
-            <span>Page {page + 1} of {tradePage.totalPages}</span>
+            <span>
+              {t('common.pageOf', {
+                page: page + 1,
+                total: tradePage.totalPages,
+              })}
+            </span>
             <button
               type="button"
               onClick={() => {
@@ -551,7 +581,7 @@ function TradeBooking() {
               }}
               disabled={page + 1 >= tradePage.totalPages}
             >
-              Next
+              {t('common.next')}
             </button>
           </nav>
         )}
@@ -585,6 +615,7 @@ function TickerCombobox({
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
   onSelect: (instrument: Instrument) => void
 }) {
+  const { t } = useI18n()
   const describedBy = fieldError
     ? 'ticker-error'
     : selected
@@ -592,7 +623,7 @@ function TickerCombobox({
       : undefined
   return (
     <label className="ticker-combobox">
-      Ticker or company
+      {t('trade.tickerCompany')}
       <input
         name="ticker"
         value={value}
@@ -613,10 +644,15 @@ function TickerCombobox({
         maxLength={64}
         required
       />
-      {loading && <span className="field-hint">Searching securities…</span>}
+      {loading && (
+        <span className="field-hint">{t('trade.searchingSecurities')}</span>
+      )}
       {selected && (
         <span id="ticker-selection" className="instrument-selected">
-          Verified: {selected.ticker} · {selected.name}
+          {t('trade.verified', {
+            ticker: selected.ticker,
+            name: selected.name,
+          })}
         </span>
       )}
       {fieldError && (
@@ -629,7 +665,7 @@ function TickerCombobox({
           {searchError ? (
             <p role="alert">{searchError}</p>
           ) : results.length === 0 && !loading ? (
-            <p>No supported US securities found.</p>
+            <p>{t('trade.noSecurities')}</p>
           ) : (
             results.map((instrument, index) => (
               <button

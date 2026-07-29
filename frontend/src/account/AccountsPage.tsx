@@ -10,11 +10,13 @@ import {
   type Position,
 } from '../api'
 import { formatDecimal, formatMoney } from '../format'
+import { localizeApiErrors, localizedStatus, useI18n } from '../i18n'
 import './AccountsPage.css'
 
 const emptyForm = { name: '', broker: '', accountNumberLast4: '' }
 
 function AccountsPage() {
+  const { language, locale, t } = useI18n()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -36,7 +38,7 @@ function AccountsPage() {
       setAccounts(await getAccounts(signal))
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        setServerError('Accounts are unavailable.')
+        setServerError(t('accounts.unavailable'))
       }
     } finally {
       if (!signal?.aborted) setLoading(false)
@@ -49,14 +51,14 @@ function AccountsPage() {
       .then(setAccounts)
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
-          setServerError('Accounts are unavailable.')
+          setServerError(t('accounts.unavailable'))
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (!selectedAccountId) return
@@ -65,14 +67,14 @@ function AccountsPage() {
       .then(setPositions)
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
-          setPositionsError('Positions are unavailable.')
+          setPositionsError(t('accounts.positionsUnavailable'))
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) setPositionsLoading(false)
       })
     return () => controller.abort()
-  }, [selectedAccountId])
+  }, [selectedAccountId, t])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -86,18 +88,20 @@ function AccountsPage() {
         : await createAccount(form)
       setMessage(
         editingId
-          ? `${account.name} updated.`
-          : `${account.name} created.`,
+          ? t('accounts.updated', { name: account.name })
+          : t('accounts.created', { name: account.name }),
       )
       setForm(emptyForm)
       setEditingId(null)
       await load()
     } catch (error) {
       if (error instanceof ApiProblemError) {
-        setFieldErrors(error.problem.errors ?? {})
+        setFieldErrors(
+          localizeApiErrors(error.problem.errors ?? {}, language),
+        )
         if (!error.problem.errors) setServerError(error.message)
       } else {
-        setServerError('The account request could not reach the backend.')
+        setServerError(t('accounts.requestFailed'))
       }
     } finally {
       setSaving(false)
@@ -122,13 +126,13 @@ function AccountsPage() {
     setServerError('')
     try {
       await deactivateAccount(account.id)
-      setMessage(`${account.name} deactivated.`)
+      setMessage(t('accounts.deactivated', { name: account.name }))
       await load()
     } catch (error) {
       setServerError(
         error instanceof ApiProblemError
           ? error.message
-          : 'The account request could not reach the backend.',
+          : t('accounts.requestFailed'),
       )
     } finally {
       setDeactivatingId(null)
@@ -138,27 +142,27 @@ function AccountsPage() {
   return (
     <section className="accounts-layout" aria-labelledby="accounts-heading">
       <div className="panel">
-        <p className="section-kicker">Account setup</p>
+        <p className="section-kicker">{t('accounts.kickerSetup')}</p>
         <h2 id="accounts-heading">
-          {editingId ? 'Edit account' : 'Create account'}
+          {editingId ? t('accounts.editTitle') : t('accounts.createTitle')}
         </h2>
         <form className="account-form" onSubmit={submit}>
           <AccountField
-            label="Account name"
+            label={t('accounts.name')}
             name="name"
             value={form.name}
             error={fieldErrors.name}
             onChange={(name) => setForm({ ...form, name })}
           />
           <AccountField
-            label="Broker"
+            label={t('accounts.broker')}
             name="broker"
             value={form.broker}
             error={fieldErrors.broker}
             onChange={(broker) => setForm({ ...form, broker })}
           />
           <AccountField
-            label="Account number last 4"
+            label={t('accounts.last4')}
             name="accountNumberLast4"
             value={form.accountNumberLast4}
             error={fieldErrors.accountNumberLast4}
@@ -170,7 +174,11 @@ function AccountsPage() {
           />
           <div className="form-actions">
             <button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : editingId ? 'Save changes' : 'Create account'}
+              {saving
+                ? t('common.saving')
+                : editingId
+                  ? t('accounts.saveChanges')
+                  : t('accounts.createTitle')}
             </button>
             {editingId && (
               <button
@@ -181,7 +189,7 @@ function AccountsPage() {
                   setForm(emptyForm)
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             )}
           </div>
@@ -195,11 +203,11 @@ function AccountsPage() {
       </div>
 
       <div className="panel">
-        <p className="section-kicker">Securities accounts</p>
-        <h2>Accounts</h2>
-        {loading && <p className="table-state">Loading accounts…</p>}
+        <p className="section-kicker">{t('accounts.kickerList')}</p>
+        <h2>{t('nav.accounts')}</h2>
+        {loading && <p className="table-state">{t('accounts.loading')}</p>}
         {!loading && !serverError && accounts.length === 0 && (
-          <p className="table-state">No accounts yet.</p>
+          <p className="table-state">{t('accounts.empty')}</p>
         )}
         {!loading && accounts.length > 0 && (
           <div className="account-list">
@@ -216,7 +224,7 @@ function AccountsPage() {
                   </p>
                 </div>
                 <span className={`status-pill status-pill--${account.status.toLowerCase()}`}>
-                  {account.status}
+                  {localizedStatus(account.status, t)}
                 </span>
                 <div className="account-actions">
                   <button
@@ -228,10 +236,10 @@ function AccountsPage() {
                       setPositionsLoading(true)
                     }}
                   >
-                    View positions
+                    {t('accounts.viewPositions')}
                   </button>
                   <button type="button" onClick={() => edit(account)}>
-                    Edit
+                    {t('common.edit')}
                   </button>
                   <button
                     type="button"
@@ -242,8 +250,8 @@ function AccountsPage() {
                     }
                   >
                     {deactivatingId === account.id
-                      ? 'Deactivating…'
-                      : 'Deactivate'}
+                      ? t('accounts.deactivating')
+                      : t('accounts.deactivate')}
                   </button>
                 </div>
               </article>
@@ -253,12 +261,14 @@ function AccountsPage() {
         {selectedAccountId && (
           <div className="positions-panel">
             <h3>
-              Positions ·{' '}
-              {accounts.find((account) => account.id === selectedAccountId)
-                ?.name ?? 'Account'}
+              {t('accounts.positions', {
+                name:
+                  accounts.find((account) => account.id === selectedAccountId)
+                    ?.name ?? t('common.account'),
+              })}
             </h3>
             {positionsLoading && (
-              <p className="table-state">Loading positions…</p>
+              <p className="table-state">{t('accounts.loadingPositions')}</p>
             )}
             {positionsError && (
               <p className="table-state table-state--error" role="alert">
@@ -268,7 +278,7 @@ function AccountsPage() {
             {!positionsLoading &&
               !positionsError &&
               positions.length === 0 && (
-                <p className="table-state">No open positions.</p>
+                <p className="table-state">{t('dashboard.noPositions')}</p>
               )}
             {!positionsLoading &&
               !positionsError &&
@@ -277,19 +287,19 @@ function AccountsPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>Ticker</th>
-                        <th>Quantity</th>
-                        <th>Average cost</th>
-                        <th>Cost basis</th>
+                        <th>{t('common.ticker')}</th>
+                        <th>{t('common.quantity')}</th>
+                        <th>{t('common.averageCost')}</th>
+                        <th>{t('accounts.costBasis')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {positions.map((position) => (
                         <tr key={position.ticker}>
                           <td>{position.ticker}</td>
-                          <td>{formatDecimal(position.quantity)}</td>
-                          <td>{formatMoney(position.averageCost)}</td>
-                          <td>{formatMoney(position.costBasis)}</td>
+                          <td>{formatDecimal(position.quantity, locale)}</td>
+                          <td>{formatMoney(position.averageCost, locale)}</td>
+                          <td>{formatMoney(position.costBasis, locale)}</td>
                         </tr>
                       ))}
                     </tbody>

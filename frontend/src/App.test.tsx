@@ -1,9 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { I18nProvider } from './i18n'
 
 describe('application navigation', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  beforeEach(() => window.localStorage.clear())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+    document.documentElement.lang = ''
+  })
 
   it('navigates between Dashboard, Accounts, Activity and Market Data', async () => {
     vi.stubGlobal(
@@ -90,6 +96,35 @@ describe('application navigation', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     render(<App />)
     expect(await screen.findByText('Unavailable')).toBeInTheDocument()
+  })
+
+  it('switches language immediately and persists the selection', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    )
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Language' }), {
+      target: { value: 'zh-CN' },
+    })
+
+    expect(
+      screen.getByRole('heading', { name: '仪表盘' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '语言' })).toHaveValue('zh-CN')
+    expect(document.documentElement.lang).toBe('zh-CN')
+    expect(window.localStorage.getItem('equity-console-language')).toBe('zh-CN')
+
+    fireEvent.change(screen.getByRole('combobox', { name: '语言' }), {
+      target: { value: 'pt-BR' },
+    })
+
+    expect(screen.getByRole('heading', { name: 'Painel' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Idioma' })).toHaveValue('pt-BR')
+    expect(document.documentElement.lang).toBe('pt-BR')
+    expect(window.localStorage.getItem('equity-console-language')).toBe('pt-BR')
   })
 
   it('opens and closes the mobile sidebar with keyboard support', async () => {

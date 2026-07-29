@@ -4,20 +4,22 @@ import AccountsPage from './account/AccountsPage'
 import Dashboard from './dashboard/Dashboard'
 import MarketData from './market/MarketData'
 import TradeBooking from './trade/TradeBooking'
+import { useI18n, type Language } from './i18n'
 import './App.css'
 
-type Page = 'Dashboard' | 'Accounts' | 'Activity' | 'Market Data'
+type Page = 'dashboard' | 'accounts' | 'activity' | 'marketData'
 type ConnectionState = 'loading' | 'connected' | 'unavailable'
 
-const pages: { label: Page; icon: IconName }[] = [
-  { label: 'Dashboard', icon: 'dashboard' },
-  { label: 'Accounts', icon: 'accounts' },
-  { label: 'Activity', icon: 'activity' },
-  { label: 'Market Data', icon: 'market' },
+const pages: { id: Page; icon: IconName }[] = [
+  { id: 'dashboard', icon: 'dashboard' },
+  { id: 'accounts', icon: 'accounts' },
+  { id: 'activity', icon: 'activity' },
+  { id: 'marketData', icon: 'market' },
 ]
 
 function App() {
-  const [page, setPage] = useState<Page>('Dashboard')
+  const { t } = useI18n()
+  const [page, setPage] = useState<Page>('dashboard')
   const [connectionState, setConnectionState] =
     useState<ConnectionState>('loading')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -61,18 +63,18 @@ function App() {
       <aside
         id="primary-sidebar"
         className={`app-sidebar ${menuOpen ? 'app-sidebar--open' : ''}`}
-        aria-label="Application sidebar"
+        aria-label={t('nav.sidebar')}
       >
         <div className="sidebar-brand">
           <span className="brand-mark" aria-hidden="true">E</span>
           <div className="brand-copy">
-            <p>Equity Portfolio</p>
-            <strong>Trade Console</strong>
+            <p>{t('brand.portfolio')}</p>
+            <strong>{t('brand.console')}</strong>
           </div>
           <button
             type="button"
             className="sidebar-close"
-            aria-label="Close navigation"
+            aria-label={t('nav.close')}
             onClick={() => {
               setMenuOpen(false)
               menuButtonRef.current?.focus()
@@ -82,32 +84,30 @@ function App() {
           </button>
         </div>
 
-        <nav className="main-nav" aria-label="Primary">
+        <nav className="main-nav" aria-label={t('nav.primary')}>
           {pages.map((item) => (
             <button
-              key={item.label}
+              key={item.id}
               type="button"
-              aria-current={page === item.label ? 'page' : undefined}
-              aria-label={item.label}
-              title={item.label}
-              onClick={() => navigate(item.label)}
+              aria-current={page === item.id ? 'page' : undefined}
+              aria-label={t(`nav.${item.id}`)}
+              title={t(`nav.${item.id}`)}
+              onClick={() => navigate(item.id)}
             >
               <NavIcon name={item.icon} />
-              <span>{item.label}</span>
+              <span>{t(`nav.${item.id}`)}</span>
             </button>
           ))}
         </nav>
 
+        <LanguageSwitcher />
+
         <div className={`sidebar-health health-chip--${connectionState}`}>
           <span className="health-dot" aria-hidden="true" />
           <div>
-            <small>Backend</small>
+            <small>{t('backend.label')}</small>
             <strong>
-              {connectionState === 'loading'
-                ? 'Connecting'
-                : connectionState === 'connected'
-                  ? 'Connected'
-                  : 'Unavailable'}
+              {t(`backend.${connectionState}`)}
             </strong>
           </div>
         </div>
@@ -117,7 +117,7 @@ function App() {
         <button
           type="button"
           className="sidebar-backdrop"
-          aria-label="Close navigation"
+          aria-label={t('nav.close')}
           onClick={() => {
             setMenuOpen(false)
             menuButtonRef.current?.focus()
@@ -131,7 +131,7 @@ function App() {
             ref={menuButtonRef}
             type="button"
             className="menu-button"
-            aria-label="Open navigation"
+            aria-label={t('nav.open')}
             aria-expanded={menuOpen}
             aria-controls="primary-sidebar"
             onClick={() => setMenuOpen(true)}
@@ -139,27 +139,48 @@ function App() {
             <NavIcon name="menu" />
           </button>
           <div>
-            <small>Equity Portfolio</small>
-            <strong>{page}</strong>
+            <small>{t('brand.portfolio')}</small>
+            <strong>{t(`nav.${page}`)}</strong>
           </div>
           <span
             className={`mobile-health health-chip--${connectionState}`}
-            aria-label={`Backend ${connectionState}`}
+            aria-label={`${t('backend.label')} ${t(`backend.${connectionState}`)}`}
           >
             <span className="health-dot" aria-hidden="true" />
           </span>
         </header>
 
         <main className="page-content">
-          {page === 'Dashboard' && (
-            <Dashboard onViewActivity={() => navigate('Activity')} />
+          {page === 'dashboard' && (
+            <Dashboard onViewActivity={() => navigate('activity')} />
           )}
-          {page === 'Accounts' && <AccountsPage />}
-          {page === 'Activity' && <TradeBooking />}
-          {page === 'Market Data' && <MarketData />}
+          {page === 'accounts' && <AccountsPage />}
+          {page === 'activity' && <TradeBooking />}
+          {page === 'marketData' && <MarketData />}
         </main>
       </div>
     </div>
+  )
+}
+
+function LanguageSwitcher() {
+  const { language, setLanguage, t } = useI18n()
+  const languages: Language[] = ['en', 'zh-CN', 'pt-BR']
+  return (
+    <label className="language-switcher">
+      <span>{t('language.label')}</span>
+      <select
+        value={language}
+        onChange={(event) => setLanguage(event.target.value as Language)}
+        aria-label={t('language.label')}
+      >
+        {languages.map((item) => (
+          <option key={item} value={item}>
+            {t(`language.${item}`)}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
 
