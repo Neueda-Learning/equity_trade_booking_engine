@@ -205,6 +205,8 @@ const en = {
   'trade.csvSemantics':
     'Account accepts an active account name or ID. Times must include Z or a UTC offset.',
   'trade.csvFile': 'CSV file',
+  'trade.csvChooseFile': 'Choose file',
+  'trade.csvNoFile': 'No file selected',
   'trade.csvInvalidFile':
     'Choose a .csv file no larger than 1 MB.',
   'trade.csvReadFailed': 'The CSV file could not be read.',
@@ -219,6 +221,15 @@ const en = {
   'trade.csvPartial': 'Imported {success}; {failed} failed.',
   'trade.csvAllFailed': 'No trades were imported. {failed} rows failed.',
   'trade.csvFailureRow': 'CSV row {row}: {message}',
+  'trade.csvRegistrationFailed':
+    'The CSV import could not be registered. No trades were submitted.',
+  'trade.csvResultFailed':
+    'Trades were processed, but the import result could not be recorded.',
+  'trade.csvDuplicateTitle': 'CSV table already imported',
+  'trade.csvDuplicateMessage':
+    'This CSV table was imported on {date}. Import it again? This will create another set of trades.',
+  'trade.csvDuplicateCancel': 'Cancel',
+  'trade.csvDuplicateConfirm': 'Import again',
   'trade.csvIssueEmpty': 'The file is empty.',
   'trade.csvIssueMalformed': 'The CSV quoting or delimiter structure is invalid.',
   'trade.csvIssueMissingHeaders': 'Missing columns: {value}.',
@@ -471,6 +482,8 @@ const zhCN: TranslationValues = {
   'trade.csvSemantics':
     'account 可填写启用账户的名称或 ID；时间必须包含 Z 或 UTC 时区偏移。',
   'trade.csvFile': 'CSV 文件',
+  'trade.csvChooseFile': '选择文件',
+  'trade.csvNoFile': '未选择文件',
   'trade.csvInvalidFile': '请选择不超过 1 MB 的 .csv 文件。',
   'trade.csvReadFailed': '无法读取该 CSV 文件。',
   'trade.csvReady': '{file} · 已准备 {count} 行',
@@ -484,6 +497,14 @@ const zhCN: TranslationValues = {
   'trade.csvPartial': '已导入 {success} 笔，{failed} 笔失败。',
   'trade.csvAllFailed': '没有导入任何交易，{failed} 行失败。',
   'trade.csvFailureRow': 'CSV 第 {row} 行：{message}',
+  'trade.csvRegistrationFailed':
+    '无法登记该 CSV 导入，尚未提交任何交易。',
+  'trade.csvResultFailed': '交易已处理，但无法记录本次导入结果。',
+  'trade.csvDuplicateTitle': 'CSV 表已导入',
+  'trade.csvDuplicateMessage':
+    '该 CSV 表已于 {date} 导入。是否再次导入？这会再次创建整张表中的交易。',
+  'trade.csvDuplicateCancel': '取消',
+  'trade.csvDuplicateConfirm': '再次导入',
   'trade.csvIssueEmpty': '文件内容为空。',
   'trade.csvIssueMalformed': 'CSV 引号或分隔符结构无效。',
   'trade.csvIssueMissingHeaders': '缺少列：{value}。',
@@ -737,6 +758,8 @@ const ptBR: TranslationValues = {
   'trade.csvSemantics':
     'A conta aceita o nome ou ID de uma conta ativa. Os horários devem incluir Z ou um deslocamento UTC.',
   'trade.csvFile': 'Arquivo CSV',
+  'trade.csvChooseFile': 'Escolher arquivo',
+  'trade.csvNoFile': 'Nenhum arquivo selecionado',
   'trade.csvInvalidFile':
     'Escolha um arquivo .csv de no máximo 1 MB.',
   'trade.csvReadFailed': 'Não foi possível ler o arquivo CSV.',
@@ -751,6 +774,15 @@ const ptBR: TranslationValues = {
   'trade.csvPartial': '{success} importadas; {failed} falharam.',
   'trade.csvAllFailed': 'Nenhuma operação foi importada. {failed} linhas falharam.',
   'trade.csvFailureRow': 'Linha CSV {row}: {message}',
+  'trade.csvRegistrationFailed':
+    'Não foi possível registrar a importação CSV. Nenhuma operação foi enviada.',
+  'trade.csvResultFailed':
+    'As operações foram processadas, mas o resultado da importação não foi registrado.',
+  'trade.csvDuplicateTitle': 'Tabela CSV já importada',
+  'trade.csvDuplicateMessage':
+    'Esta tabela CSV foi importada em {date}. Deseja importá-la novamente? Isso criará outro conjunto de operações.',
+  'trade.csvDuplicateCancel': 'Cancelar',
+  'trade.csvDuplicateConfirm': 'Importar novamente',
   'trade.csvIssueEmpty': 'O arquivo está vazio.',
   'trade.csvIssueMalformed': 'A estrutura de aspas ou delimitadores do CSV é inválida.',
   'trade.csvIssueMissingHeaders': 'Colunas ausentes: {value}.',

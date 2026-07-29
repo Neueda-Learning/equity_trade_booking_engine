@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>speaker-notes-bilingual.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="equity-trade-booking-engine--bilingual-speaker-notes">Equity Trade Booking Engine — Bilingual Speaker Notes</h1>
+<p>建议时长：10–12 分钟。每页先给出中文稿，再给出等义英文稿；可任选一种语言完整演讲，也可按听众情况切换。</p>
+<h2 id="slide-1--股票交易记账引擎--equity-trade-booking-engine">Slide 1 — 股票交易记账引擎 / Equity Trade Booking Engine</h2>
+<h3 id="中文">中文</h3>
+<p>大家好，我们是第五组 Give me five。今天介绍的项目是股票交易记账引擎。它面向单用户、多证券账户场景，把账户管理、买卖记账、交易生命周期、持仓计算、市场行情和未实现盈亏放在同一条可审计的业务链路中。我们希望展示的不只是一个页面应用，而是一套在数据一致性、故障降级和工程质量上都可以解释、验证和演示的交易后台。</p>
+<h3 id="english">English</h3>
+<p>Hello everyone. We are Group 5, “Give me five.” Today we are presenting the Equity Trade Booking Engine. It is designed for a single user managing multiple securities accounts, and it connects account setup, trade booking, lifecycle management, position calculation, market quotes, and unrealized P&amp;L in one auditable workflow. Our goal is not simply to demonstrate a user interface. We want to show a trading back office whose data integrity, failure behavior, and engineering quality can all be explained, tested, and demonstrated.</p>
+<h2 id="slide-2--从碎片操作到可信闭环--from-fragmented-tasks-to-a-trusted-loop">Slide 2 — 从碎片操作到可信闭环 / From Fragmented Tasks to a Trusted Loop</h2>
+<h3 id="中文-1">中文</h3>
+<p>传统的演示项目常把账户、交易、行情和盈亏拆成互不关联的 CRUD 页面，这会留下三个问题：交易修改后是否还能追溯，卖出或撤单后持仓是否仍然正确，行情服务失败时系统会不会悄悄显示错误数据。本项目把这些问题统一为一个闭环：交易是事实，持仓由有效交易重放得到，行情只负责估值，盈亏由后端统一计算。这样每个数字都能追溯到来源，每种异常也有明确语义。</p>
+<h3 id="english-1">English</h3>
+<p>Many demonstration systems treat accounts, trades, quotes, and P&amp;L as unrelated CRUD screens. That leaves three important questions unanswered: can an amended trade still be audited, does a sell or cancellation keep the position correct, and what happens when the quote provider fails? This project turns those concerns into one closed loop. Trades are the business facts, positions are replayed from valid trades, market data is used only for valuation, and P&amp;L is calculated centrally by the backend. As a result, every number has a traceable origin and every failure state has an explicit meaning.</p>
+<h2 id="slide-3--端到端业务闭环--end-to-end-business-loop">Slide 3 — 端到端业务闭环 / End-to-End Business Loop</h2>
+<h3 id="中文-2">中文</h3>
+<p>业务从创建证券账户开始。用户选择经过校验的美股、ADR 或 ETF，录入买卖方向、数量、价格和执行时间。系统按照时间顺序重放已入账交易，得到按账户和股票代码聚合的持仓。随后获取行情并计算市值、成本和未实现盈亏，最后把最新估值和历史快照呈现在 Dashboard。取消、删除或修改交易都会重新影响下游持仓和盈亏，但不会抹掉原始审计记录。</p>
+<h3 id="english-2">English</h3>
+<p>The workflow starts with a securities account. The user selects a verified U.S. stock, ADR, or ETF and records the side, quantity, trade price, and execution time. The system replays booked trades chronologically to derive positions by account and ticker. It then obtains quotes, calculates market value, cost basis, and unrealized P&amp;L, and presents both the current valuation and persistent history on the dashboard. Cancelling, deleting, or amending a trade changes downstream positions and P&amp;L, while the original audit evidence remains intact.</p>
+<h2 id="slide-4--交易生命周期与业务不变量--lifecycle-and-business-invariants">Slide 4 — 交易生命周期与业务不变量 / Lifecycle and Business Invariants</h2>
+<h3 id="中文-3">中文</h3>
+<p>交易生命周期的核心不是“能不能改”，而是“改完之后还能不能说明发生过什么”。正常交易状态是 BOOKED；取消后变为 CANCELLED，并记录取消原因。删除是保留审计的软删除，修改则取消原交易并创建一条 replacement，通过 supersedesTradeId 建立关联。系统还有三条不变量：取消操作幂等；任何时间点都不允许形成负持仓；持仓只由 BOOKED 交易参与计算。这些规则同时存在于领域模型和测试中。</p>
+<h3 id="english-3">English</h3>
+<p>The key lifecycle question is not whether a trade can be changed, but whether we can still explain what happened afterward. A normal trade is BOOKED. Cancellation moves it to CANCELLED and records a reason. Deletion is audit-preserving soft cancellation, while amendment cancels the original and creates a replacement linked through <code>supersedesTradeId</code>. Three invariants protect the model: cancellation is idempotent, the chronological trade timeline may never produce a negative position, and only BOOKED trades contribute to positions. These rules are represented in both the domain model and the automated tests.</p>
+<h2 id="slide-5--持仓与盈亏计算--position-and-pl-calculation">Slide 5 — 持仓与盈亏计算 / Position and P&amp;L Calculation</h2>
+<h3 id="中文-4">中文</h3>
+<p>持仓采用加权平均成本。买入会增加数量和成本基础，卖出按当前平均成本减少成本基础，因此不会因为卖出价格改变剩余持仓的平均成本。估值公式很直接：市值等于数量乘市场价，未实现盈亏等于市值减成本基础，收益率等于未实现盈亏除以成本基础。所有核心计算都在后端使用十进制数完成，避免前端浮点误差。若行情缺失，值保持为 null，界面不会把零价格伪装成真实行情。</p>
+<h3 id="english-4">English</h3>
+<p>Positions use weighted-average cost. A buy increases quantity and cost basis. A sell reduces cost basis at the current average cost, so the sale price does not distort the average cost of the remaining position. Valuation is straightforward: market value equals quantity times market price; unrealized P&amp;L equals market value minus cost basis; and return percentage equals unrealized P&amp;L divided by cost basis. Core calculations use backend decimal arithmetic to avoid browser floating-point differences. If a quote is missing, the value stays null—the UI never invents a zero market price.</p>
+<h2 id="slide-6--模块化单体架构--modular-monolith-architecture">Slide 6 — 模块化单体架构 / Modular Monolith Architecture</h2>
+<h3 id="中文-5">中文</h3>
+<p>系统采用模块化单体，而不是为了形式拆分微服务。前端由 React 和 TypeScript 构建，通过 Nginx 反向代理访问 Spring Boot API。后端按 Account、Trade、Position、Market Data 和 P&amp;L 划分业务模块，每个模块遵循 API 到 Application 到 Domain 的依赖方向，Infrastructure 通过端口适配领域。MySQL 保存账户、交易和估值快照，是系统事实来源；Redis 只缓存行情，可以随时丢弃，不承载唯一业务数据。这种边界降低了部署复杂度，也保留了未来拆分的可能。</p>
+<h3 id="english-5">English</h3>
+<p>The system uses a modular monolith rather than splitting into microservices for appearance alone. The React and TypeScript frontend reaches the Spring Boot API through Nginx. The backend is divided into Account, Trade, Position, Market Data, and P&amp;L modules. Inside each module, dependencies flow from API to application to domain, while infrastructure implements domain-facing ports. MySQL stores accounts, trades, and valuation snapshots and is the system of record. Redis caches market quotes only and can be discarded without losing unique business data. This boundary keeps deployment simple while preserving a path to future extraction.</p>
+<h2 id="slide-7--行情韧性与诚实降级--market-data-resilience">Slide 7 — 行情韧性与诚实降级 / Market-Data Resilience</h2>
+<h3 id="中文-6">中文</h3>
+<p>行情模块支持确定性的 Mock 和显式配置的 Finnhub。系统不会在真实行情失败时偷偷切换到 Mock，因为那会把演示数据误认为真实数据。正常请求先访问 provider，并把成功结果写入 Redis。缓存有两个时间窗口：新鲜期内可直接复用；超过新鲜期但仍在保留期内，只能在 provider 故障时作为 stale fallback。界面明确显示 MOCK、LIVE、CACHED、STALE 和 INCOMPLETE，让用户知道数据从哪里来、是否过期、估值是否完整。</p>
+<h3 id="english-6">English</h3>
+<p>The market-data module supports deterministic Mock data and explicitly configured Finnhub data. It never silently switches from a failed real provider to Mock, because that would misrepresent generated values as market truth. A normal request calls the provider and stores a successful result in Redis. The cache has two windows: a fresh period for normal reuse, and a longer retention period that is available only as a stale fallback when the provider fails. The UI displays MOCK, LIVE, CACHED, STALE, and INCOMPLETE states so users know the origin, age, and completeness of every valuation.</p>
+<h2 id="slide-8--dashboard从交易到组合洞察--from-trades-to-portfolio-insight">Slide 8 — Dashboard：从交易到组合洞察 / From Trades to Portfolio Insight</h2>
+<h3 id="中文-7">中文</h3>
+<p>Dashboard 是整个闭环的结果页。它可以按全部账户或单个账户查看，展示总市值、总成本、未实现盈亏、收益率、持仓数量和未定价持仓。下方逐个股票代码显示数量、平均成本、市场价、市值、盈亏和行情状态。这里的关键不是把数字画得漂亮，而是让每个指标都来自同一套后端计算，并且在行情陈旧或不完整时主动提示。估值历史只保存真实生成的快照，不会为了图表好看而伪造数据。</p>
+<h3 id="english-7">English</h3>
+<p>The dashboard is the result page for the entire workflow. It can show all accounts or one selected account, with total market value, cost basis, unrealized P&amp;L, return, open positions, and unpriced positions. The position table then exposes quantity, average cost, market price, market value, P&amp;L, and quote status for each ticker. The important point is not visual decoration; it is that every metric comes from one backend calculation model and that stale or incomplete quotes are surfaced immediately. Valuation history contains only persisted snapshots—the system never fabricates history to make a chart look better.</p>
+<h2 id="slide-9--产品工作台--product-workbench">Slide 9 — 产品工作台 / Product Workbench</h2>
+<h3 id="中文-8">中文</h3>
+<p>除了 Dashboard，系统还有三个操作工作台。Accounts 管理多个证券账户及启用状态，并可查看账户级持仓。Activity 负责交易录入、分页查询、取消、审计保留的删除和修改。Market Data 提供股票搜索、单个或批量刷新、provider 状态以及演示环境下的故障模拟。桌面端和移动端共享同一套信息架构，关键状态使用文字标签而不只依赖颜色，方便测试和无障碍访问。</p>
+<h3 id="english-8">English</h3>
+<p>Beyond the dashboard, the product has three operational workbenches. Accounts manages multiple securities accounts and their active state, with account-level position views. Activity supports trade entry, paginated search, cancellation, audit-preserving deletion, and amendment. Market Data provides instrument search, single and batch refresh, provider status, and controlled outage simulation in demo mode. Desktop and mobile layouts share one information architecture, and important states use text labels rather than color alone, which improves accessibility and makes behavior easier to test.</p>
+<h2 id="slide-10--工程质量与交付--engineering-quality-and-delivery">Slide 10 — 工程质量与交付 / Engineering Quality and Delivery</h2>
+<h3 id="中文-9">中文</h3>
+<p>质量体系覆盖从领域规则到完整用户旅程。后端包含领域单元测试、API 集成测试、MySQL 和 Redis 的 Testcontainers 测试，以及 ArchUnit 架构约束。前端使用 Vitest、Testing Library 和 ESLint，并进行生产构建。Compose smoke test 验证生命周期、盈亏、缓存降级和容器重启；Playwright 在桌面和移动尺寸执行端到端流程。GitHub Actions 把 backend、frontend、compose-smoke 和 e2e 汇总到统一 quality gate，任何一项失败都不能通过。</p>
+<h3 id="english-9">English</h3>
+<p>The quality strategy covers everything from domain rules to the complete user journey. The backend includes domain unit tests, API integration tests, MySQL and Redis Testcontainers tests, and ArchUnit dependency checks. The frontend uses Vitest, Testing Library, ESLint, and a production build. The Compose smoke test verifies lifecycle behavior, P&amp;L, cache fallback, and container restart. Playwright runs the end-to-end workflow at both desktop and mobile sizes. GitHub Actions combines backend, frontend, compose-smoke, and E2E jobs into one quality gate, so no partial success can be reported as a passing build.</p>
+<h2 id="slide-11--已知边界与演进路线--boundaries-and-roadmap">Slide 11 — 已知边界与演进路线 / Boundaries and Roadmap</h2>
+<h3 id="中文-10">中文</h3>
+<p>当前版本有意控制范围：单用户、仅美元、没有现金账本、不允许做空，只计算未实现盈亏，并采用加权平均成本。这些不是隐藏缺陷，而是清晰的产品边界。下一阶段可以沿三条路线演进：第一，加入认证、授权和账户归属；第二，增加现金、多币种、已实现盈亏和税务批次；第三，引入更多行情源、WebSocket 实时推送、历史 K 线、生产级密钥管理和可观测性。现有模块边界为这些扩展提供了落点。</p>
+<h3 id="english-10">English</h3>
+<p>The current release deliberately limits scope: it is single-user, USD-only, has no cash ledger, does not allow short positions, calculates unrealized P&amp;L only, and uses weighted-average cost. These are explicit product boundaries rather than hidden defects. The next stage can evolve along three paths. First, add authentication, authorization, and account ownership. Second, add cash, multiple currencies, realized P&amp;L, and tax-lot accounting. Third, introduce more quote providers, WebSocket streaming, historical candles, production secret management, and observability. The current module boundaries provide clear extension points for each path.</p>
+<h2 id="slide-12--总结与演示路径--takeaway-and-demo-path">Slide 12 — 总结与演示路径 / Takeaway and Demo Path</h2>
+<h3 id="中文-11">中文</h3>
+<p>总结来说，这个项目把交易事实、可重算持仓、可解释行情和一致的盈亏计算连接成一个可信闭环。它的三个核心价值是：业务规则可审计，外部故障可降级，交付结果可验证。现场演示可以按 Accounts 创建账户、Activity 录入买卖、Dashboard 查看盈亏、Market Data 模拟故障、再回到 Dashboard 观察 STALE 标记的顺序进行。谢谢大家，接下来欢迎提问。</p>
+<h3 id="english-11">English</h3>
+<p>To conclude, this project connects trade facts, replayable positions, explainable market data, and consistent P&amp;L into one trusted loop. Its three core values are auditable business rules, graceful external failure behavior, and verifiable delivery quality. A live demo can follow a simple path: create an account in Accounts, book buy and sell activity, inspect P&amp;L on the Dashboard, simulate a provider outage in Market Data, and return to the Dashboard to observe the STALE status. Thank you, and we welcome your questions.</p>
+
+</body>
+</html>

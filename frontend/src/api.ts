@@ -202,6 +202,26 @@ export interface ProblemDetails {
   detail?: string
   instance?: string
   errors?: Record<string, string>
+  duplicateImport?: TradeImportRegistration
+}
+
+export interface TradeImportRegistration {
+  importId: string
+  firstFileName: string
+  rowCount: number
+  firstImportedAt: string
+  lastImportedAt: string
+  importCount: number
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'PARTIAL' | 'FAILED'
+  lastSuccessCount: number
+  lastFailureCount: number
+}
+
+export interface TradeImportRegistrationInput {
+  contentHash: string
+  fileName: string
+  rowCount: number
+  repeatConfirmed: boolean
 }
 
 export class ApiProblemError extends Error {
@@ -281,6 +301,37 @@ export function createTrade(input: TradeInput) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
+}
+
+export function registerTradeImport(
+  input: TradeImportRegistrationInput,
+) {
+  return request<TradeImportRegistration>(
+    '/api/trade-imports/registrations',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  )
+}
+
+export function completeTradeImport(
+  importId: string,
+  result: {
+    importCount: number
+    successCount: number
+    failureCount: number
+  },
+) {
+  return request<TradeImportRegistration>(
+    `/api/trade-imports/${importId}/result`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(result),
+    },
+  )
 }
 
 export function cancelTrade(id: string) {

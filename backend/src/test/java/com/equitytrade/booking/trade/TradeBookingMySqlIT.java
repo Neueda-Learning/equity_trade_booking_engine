@@ -91,7 +91,7 @@ class TradeBookingMySqlIT {
                 """
                         SELECT COUNT(*)
                         FROM flyway_schema_history
-                        WHERE version IN ('1', '2', '3', '4', '5', '6')
+                        WHERE version IN ('1', '2', '3', '4', '5', '6', '7')
                           AND success = 1
                         """,
                 Integer.class);
@@ -176,8 +176,26 @@ class TradeBookingMySqlIT {
                           AND index_name = 'uk_trades_supersedes_trade'
                         """,
                 Integer.class);
+        Integer importRegistryCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.tables
+                        WHERE table_schema = DATABASE()
+                          AND table_name = 'trade_import_registry'
+                        """,
+                Integer.class);
+        Integer importHashIndexCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.statistics
+                        WHERE table_schema = DATABASE()
+                          AND table_name = 'trade_import_registry'
+                          AND index_name =
+                            'uk_trade_import_registry_content_hash'
+                        """,
+                Integer.class);
 
-        assertThat(successfulMigrations).isEqualTo(6);
+        assertThat(successfulMigrations).isEqualTo(7);
         assertThat(accountTableCount).isEqualTo(1);
         assertThat(foreignKeyCount).isEqualTo(1);
         assertThat(historicalAccountId).isEqualTo(PRIMARY_ACCOUNT_ID);
@@ -187,6 +205,8 @@ class TradeBookingMySqlIT {
         assertThat(auditColumnCount).isEqualTo(2);
         assertThat(auditForeignKeyCount).isEqualTo(1);
         assertThat(auditIndexCount).isEqualTo(1);
+        assertThat(importRegistryCount).isEqualTo(1);
+        assertThat(importHashIndexCount).isEqualTo(1);
     }
 
     @Test
@@ -526,6 +546,97 @@ class TradeBookingMySqlIT {
                 replacementId)).isEqualTo(originalId);
     }
 
+    @Test
+    @Order(9)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void persistsCsvImportIdentityAndResultInMySql() throws Exception {
+        String contentHash =
+                "11111111111111111111111111111111"
+                        + "11111111111111111111111111111111";
+        MvcResult registration = mockMvc.perform(post(
+                                "/api/trade-imports/registrations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "contentHash", contentHash,
+                                "fileName", "mysql-import.csv",
+                                "rowCount", 2,
+                                "repeatConfirmed", false))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode registered = objectMapper.readTree(
+                registration.getResponse().getContentAsString());
+        String importId = registered.path("importId").asText();
+
+        mockMvc.perform(org.springframework.test.web.servlet.request
+                                .MockMvcRequestBuilders.patch(
+                                        "/api/trade-imports/{id}/result",
+                                        importId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "importCount", 1,
+                                "successCount", 2,
+                                "failureCount", 0))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+        Map<String, Object> stored = jdbcTemplate.queryForMap(
+                """
+                        SELECT content_hash, import_count, status,
+                               last_success_count, last_failure_count
+                        FROM trade_import_registry
+                        WHERE id = ?
+                        """,
+                importId);
+        assertThat(stored.get("content_hash")).isEqualTo(contentHash);
+        assertThat(stored.get("import_count")).isEqualTo(1);
+        assertThat(stored.get("status")).isEqualTo("COMPLETED");
+        assertThat(stored.get("last_success_count")).isEqualTo(2);
+        assertThat(stored.get("last_failure_count")).isEqualTo(0);
+    }
+
+    @Test
+    @Order(10)
+    void concurrentCsvRegistrationsAllowOnlyOneFirstImport() throws Exception {
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM trade_import_registry
+                        WHERE first_file_name = 'mysql-import.csv'
+                          AND status = 'COMPLETED'
+                        """,
+                Integer.class)).isEqualTo(1);
+        String contentHash =
+                "abcdef0123456789abcdef0123456789"
+                        + "abcdef0123456789abcdef0123456789";
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            Future<Integer> first = executor.submit(() ->
+                    concurrentImportRegistration(
+                            contentHash,
+                            ready,
+                            start));
+            Future<Integer> second = executor.submit(() ->
+                    concurrentImportRegistration(
+                            contentHash,
+                            ready,
+                            start));
+            ready.await();
+            start.countDown();
+
+            assertThat(List.of(first.get(), second.get()))
+                    .containsExactlyInAnyOrder(201, 409);
+        }
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM trade_import_registry
+                        WHERE content_hash = ?
+                        """,
+                Integer.class,
+                contentHash)).isEqualTo(1);
+    }
+
     private int concurrentSell(
             CountDownLatch ready,
             CountDownLatch start) throws Exception {
@@ -540,6 +651,24 @@ class TradeBookingMySqlIT {
                                 new BigDecimal("8"),
                                 new BigDecimal("12"),
                                 Instant.now().minusSeconds(5))))
+                .andReturn()
+                .getResponse()
+                .getStatus();
+    }
+
+    private int concurrentImportRegistration(
+            String contentHash,
+            CountDownLatch ready,
+            CountDownLatch start) throws Exception {
+        ready.countDown();
+        start.await();
+        return mockMvc.perform(post("/api/trade-imports/registrations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "contentHash", contentHash,
+                                "fileName", "concurrent.csv",
+                                "rowCount", 1,
+                                "repeatConfirmed", false))))
                 .andReturn()
                 .getResponse()
                 .getStatus();
