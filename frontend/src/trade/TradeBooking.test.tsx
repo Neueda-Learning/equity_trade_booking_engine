@@ -107,8 +107,8 @@ describe('multi-account activity', () => {
     })
     expect(await screen.findByText('AAPL')).toBeInTheDocument()
     expect(
-      screen.getByRole('columnheader', { name: 'Operation time' }),
-    ).toBeInTheDocument()
+      screen.queryByRole('columnheader', { name: 'Operation time' }),
+    ).not.toBeInTheDocument()
     expect(fetchMock.mock.calls[2][0]).toContain(
       `accountId=${encodeURIComponent(retirement.id)}`,
     )

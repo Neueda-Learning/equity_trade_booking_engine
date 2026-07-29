@@ -37,7 +37,7 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   ).toBeVisible()
   await expectNoPageOverflow(page)
 
-  const activityNavigation = page.getByRole('button', { name: 'Activity' })
+  const activityNavigation = page.getByRole('button', { name: 'Trade' })
   await activityNavigation.focus()
   await page.keyboard.press('Enter')
   await expect(page.getByRole('heading', { name: 'Book a trade' })).toBeVisible()
@@ -95,7 +95,7 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   ).toBeVisible()
   await expectNoPageOverflow(page)
 
-  await navigate(page, 'Activity')
+  await navigate(page, 'Trade')
   page.once('dialog', (dialog) => dialog.accept())
   await activityRow(page, accountName, ticker, 'SELL')
     .getByRole('button', { name: 'Delete' })
@@ -161,7 +161,7 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
 
 async function navigate(
   page: Page,
-  name: 'Dashboard' | 'Accounts' | 'Activity' | 'Market Data',
+  name: 'Dashboard' | 'Accounts' | 'Trade' | 'Market Data',
 ) {
   const menu = page.getByRole('button', { name: 'Open navigation' })
   if (await menu.isVisible()) await menu.click()
