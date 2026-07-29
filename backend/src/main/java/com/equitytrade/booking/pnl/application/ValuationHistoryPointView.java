@@ -2,6 +2,7 @@ package com.equitytrade.booking.pnl.application;
 
 import com.equitytrade.booking.pnl.domain.PnlTotals;
 import com.equitytrade.booking.pnl.domain.SnapshotScope;
+import com.equitytrade.booking.pnl.domain.ValuationSnapshot;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,23 @@ public record ValuationHistoryPointView(
         boolean mock,
         boolean stale,
         Instant capturedAt) {
+
+    static ValuationHistoryPointView from(ValuationSnapshot snapshot) {
+        return new ValuationHistoryPointView(
+                snapshot.id(),
+                snapshot.scopeType().name(),
+                snapshot.accountId(),
+                LocalDate.ofInstant(snapshot.capturedAt(), ZoneOffset.UTC),
+                PnlDecimal.api(snapshot.totalCostBasis()),
+                PnlDecimal.api(snapshot.totalMarketValue()),
+                PnlDecimal.api(snapshot.unrealizedPnl()),
+                snapshot.positionCount(),
+                snapshot.pricedPositionCount(),
+                snapshot.complete(),
+                snapshot.mock(),
+                snapshot.stale(),
+                snapshot.capturedAt());
+    }
 
     static ValuationHistoryPointView from(
             UUID accountId,

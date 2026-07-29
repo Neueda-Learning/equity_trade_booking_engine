@@ -59,7 +59,9 @@ describe('P&L Dashboard', () => {
       ),
     )
     expect(
-      await screen.findByText('No booked trades are available for valuation.'),
+      await screen.findByText(
+        'No local valuation snapshots yet. The first capture runs automatically.',
+      ),
     ).toBeInTheDocument()
   })
 

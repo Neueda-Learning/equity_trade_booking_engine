@@ -25,8 +25,8 @@ public class DashboardSnapshotScheduler {
     }
 
     @Scheduled(
-            fixedDelayString = "${dashboard.snapshots.interval:15m}",
-            initialDelayString = "${dashboard.snapshots.initial-delay:15m}")
+            fixedDelayString = "${dashboard.snapshots.interval:1m}",
+            initialDelayString = "${dashboard.snapshots.initial-delay:0s}")
     public void capture() {
         try {
             dashboardService.captureScheduled();

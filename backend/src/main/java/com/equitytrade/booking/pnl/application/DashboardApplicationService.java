@@ -4,6 +4,7 @@ import com.equitytrade.booking.pnl.domain.DashboardAccount;
 import com.equitytrade.booking.pnl.domain.DashboardContextSource;
 import com.equitytrade.booking.pnl.domain.HistoryRange;
 import com.equitytrade.booking.pnl.domain.PnlResult;
+import com.equitytrade.booking.pnl.domain.SnapshotScope;
 import com.equitytrade.booking.pnl.domain.ValuationSnapshot;
 import com.equitytrade.booking.pnl.domain.ValuationSnapshotRepository;
 import org.springframework.stereotype.Service;
@@ -19,23 +20,21 @@ import java.util.UUID;
 public class DashboardApplicationService {
 
     private static final int RECENT_ACTIVITY_LIMIT = 5;
+    private static final int MAX_HISTORY_POINTS = 1_440;
 
     private final PnlApplicationService pnlService;
     private final DashboardContextSource contextSource;
     private final ValuationSnapshotRepository snapshotRepository;
-    private final HistoricalValuationService historicalValuationService;
     private final Clock clock;
 
     public DashboardApplicationService(
             PnlApplicationService pnlService,
             DashboardContextSource contextSource,
             ValuationSnapshotRepository snapshotRepository,
-            HistoricalValuationService historicalValuationService,
             Clock clock) {
         this.pnlService = pnlService;
         this.contextSource = contextSource;
         this.snapshotRepository = snapshotRepository;
-        this.historicalValuationService = historicalValuationService;
         this.clock = clock;
     }
 
@@ -70,7 +69,7 @@ public class DashboardApplicationService {
     @Transactional
     public void captureScheduled() {
         Instant capturedAt = now();
-        PnlResult all = pnlService.calculate(null, false);
+        PnlResult all = pnlService.calculate(null, true);
         snapshotRepository.save(ValuationSnapshot.capture(
                 null,
                 all.totals(),
@@ -101,7 +100,20 @@ public class DashboardApplicationService {
                     "range",
                     exception.getMessage());
         }
-        return historicalValuationService.history(accountId, range);
+        List<ValuationSnapshot> snapshots = snapshotRepository.find(
+                        accountId == null
+                                ? SnapshotScope.ALL
+                                : SnapshotScope.ACCOUNT,
+                        accountId,
+                        range.capturedFrom(now()).orElse(null));
+        List<ValuationHistoryPointView> items =
+                ValuationHistorySampler.evenly(
+                                snapshots,
+                                MAX_HISTORY_POINTS)
+                .stream()
+                .map(ValuationHistoryPointView::from)
+                .toList();
+        return new ValuationHistoryView(range.apiValue(), items);
     }
 
     private DashboardView dashboard(

@@ -27,8 +27,8 @@ labelled `MOCK`; Finnhub quotes and Redis fallback values are distinguished as
 - Redis quote caching with fresh and retained stale-fallback periods
 - Provider status and opt-in Demo outage controls
 - Backend-calculated unrealized P&L with partial quote availability
-- Dashboard KPIs, Position P&L, recent Activity, and daily valuation history
-  reconstructed from executed trades and historical closing prices
+- Dashboard KPIs, Position P&L, recent Activity, and persistent one-minute
+  valuation history captured from current provider quotes
 - MySQL 8.4 Flyway migrations with Hibernate schema validation
 - RFC Problem Details errors, OpenAPI documentation, and Swagger UI
 - Unit, MySQL/Redis Testcontainers integration, frontend, Compose smoke, and
@@ -71,11 +71,19 @@ SELL and cancellation are rejected if any point in the resulting timeline
 would become negative. Weighted average cost is used; FIFO/LIFO and short
 selling are not supported.
 
-Daily valuation history replays the current BOOKED ledger by `executedAt`.
-`1D`, `7D`, and `30D` return inclusive UTC calendar days; `ALL` begins on the
-earliest execution date. Trading-day closes value open positions, and weekends
-or market holidays carry forward the most recent available close. Deleted,
-cancelled, and superseded trades are excluded when the curve is recalculated.
+Valuation history is captured to MySQL once per minute by default. Each capture
+force-refreshes every distinct open-position ticker once, calculates aggregate
+and per-account P&L, and persists `ALL` and `ACCOUNT` snapshots. `1D`, `7D`, and
+`30D` are rolling windows; `ALL` returns all locally collected history. The API
+downsamples very large responses to at most 1,440 evenly spaced points while
+retaining every stored snapshot in MySQL.
+
+Collection starts when the backend starts and cannot reconstruct time before
+the first capture. It uses Finnhub `/quote`, so it does not require premium
+historical-candle access. With the common 60-call/minute Finnhub limit, a
+one-minute interval supports fewer than 60 distinct open tickers after leaving
+capacity for searches, manual refreshes, and other API calls. Increase
+`DASHBOARD_SNAPSHOT_INTERVAL` when the portfolio or API plan requires it.
 
 P&L is unrealized P&L only:
 
@@ -180,10 +188,10 @@ falls back to Mock automatically. If the provider fails and a retained Redis
 quote exists, the response is `cached=true` and `stale=true`; otherwise the API
 returns safe Problem Details.
 
-Finnhub daily history uses `/stock/candle` with `resolution=D`. Finnhub may
-require a paid historical-data entitlement. If a historical close is
-unavailable, the affected daily valuation is marked incomplete and the UI
-shows a warning instead of presenting it as a complete portfolio value.
+The dashboard history uses locally persisted valuation snapshots instead of
+Finnhub `/stock/candle`. A failed current quote may reuse the retained Redis
+value as a `STALE` snapshot; a position with no available quote makes that
+snapshot incomplete.
 
 To validate a real local key without printing it:
 
@@ -334,8 +342,8 @@ token, never a real Finnhub API key.
 | `MYSQL_HOST_PORT` | `3307` |
 | `REDIS_HOST_PORT` | `6379` |
 | `DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED` | `true` |
-| `DASHBOARD_SNAPSHOT_INTERVAL` | `15m` |
-| `DASHBOARD_SNAPSHOT_INITIAL_DELAY` | `15m` |
+| `DASHBOARD_SNAPSHOT_INTERVAL` | `1m` |
+| `DASHBOARD_SNAPSHOT_INITIAL_DELAY` | `0s` |
 
 Copy `.env.example` to an ignored `.env` only for local overrides. Defaults are
 development examples and must not be reused as production credentials.
@@ -352,9 +360,10 @@ development examples and must not be reused as production credentials.
 - Activity editing creates an audit-linked replacement instead of mutating the
   original trade
 - No WebSocket quotes
-- Finnhub historical candles depend on the configured account entitlement
+- Local valuation history begins at the first successful capture and does not
+  backfill earlier periods
 - Mock remains the default development provider and produces clearly labelled,
-  deterministic daily closes
+  deterministic quotes
 
 ## Future work
 

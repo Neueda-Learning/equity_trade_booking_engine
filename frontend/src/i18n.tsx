@@ -92,12 +92,13 @@ const en = {
   'dashboard.noPositions': 'No open positions.',
   'dashboard.history': 'Valuation history',
   'dashboard.historyDescription':
-    'Daily market value and unrealized P&L based on execution time and closing prices',
+    'Locally captured market value and unrealized P&L snapshots',
   'dashboard.historyRange': 'History range',
   'dashboard.loadingHistory': 'Loading valuation history…',
-  'dashboard.noSnapshots': 'No booked trades are available for valuation.',
+  'dashboard.noSnapshots':
+    'No local valuation snapshots yet. The first capture runs automatically.',
   'dashboard.historyIncomplete':
-    'Some daily values omit positions without an available historical close.',
+    'Some saved valuations omit positions without an available quote.',
   'dashboard.chartMarketValue': 'Market Value',
   'dashboard.chartSeries': 'Chart metric',
   'dashboard.chartUpdating': 'Updating chart…',
@@ -377,11 +378,11 @@ const zhCN: TranslationValues = {
   'dashboard.positionPnl': '持仓盈亏',
   'dashboard.noPositions': '暂无持仓。',
   'dashboard.history': '估值历史',
-  'dashboard.historyDescription': '按实际成交时间和每日收盘价计算的市场价值与未实现盈亏',
+  'dashboard.historyDescription': '定时保存到本地的市场价值与未实现盈亏快照',
   'dashboard.historyRange': '历史范围',
   'dashboard.loadingHistory': '正在加载估值历史…',
-  'dashboard.noSnapshots': '暂无可用于估值的已入账交易。',
-  'dashboard.historyIncomplete': '部分日期缺少历史收盘价，估值未包含对应持仓。',
+  'dashboard.noSnapshots': '暂无本地估值快照，系统会自动执行首次采集。',
+  'dashboard.historyIncomplete': '部分已保存估值缺少可用报价，未包含对应持仓。',
   'dashboard.chartMarketValue': '市场价值',
   'dashboard.chartSeries': '图表指标',
   'dashboard.chartUpdating': '正在更新图表…',
@@ -644,13 +645,13 @@ const ptBR: TranslationValues = {
   'dashboard.noPositions': 'Nenhuma posição aberta.',
   'dashboard.history': 'Histórico de avaliação',
   'dashboard.historyDescription':
-    'Valor diário e resultado não realizado por execução e preço de fechamento',
+    'Snapshots locais de valor de mercado e resultado não realizado',
   'dashboard.historyRange': 'Período do histórico',
   'dashboard.loadingHistory': 'Carregando histórico de avaliação…',
   'dashboard.noSnapshots':
-    'Não há operações registradas disponíveis para avaliação.',
+    'Ainda não há snapshots locais. A primeira captura é automática.',
   'dashboard.historyIncomplete':
-    'Alguns dias omitem posições sem preço histórico de fechamento.',
+    'Algumas avaliações salvas omitem posições sem cotação disponível.',
   'dashboard.chartMarketValue': 'Valor de mercado',
   'dashboard.chartSeries': 'Métrica do gráfico',
   'dashboard.chartUpdating': 'Atualizando gráfico…',

@@ -59,11 +59,11 @@ public class DashboardController {
 
     @GetMapping("/history")
     @Operation(
-            summary = "Get daily valuation history",
+            summary = "Get locally captured valuation history",
             description = """
-                    Replays BOOKED trades by executedAt and values each UTC day
-                    with historical closing prices. Weekends and market
-                    holidays carry forward the most recent close.
+                    Reads timestamped portfolio valuation snapshots persisted in
+                    MySQL. Scheduled snapshots use current provider quotes and
+                    do not require Finnhub historical-candle entitlement.
                     """)
     @ApiResponse(
             responseCode = "400",
@@ -77,7 +77,7 @@ public class DashboardController {
             @Parameter(description = "Optional account filter")
             @RequestParam(required = false) UUID accountId,
             @Parameter(
-                    description = "UTC history range",
+                    description = "Rolling snapshot history range",
                     schema = @Schema(
                             allowableValues = {"1D", "7D", "30D", "ALL"},
                             defaultValue = "30D"))

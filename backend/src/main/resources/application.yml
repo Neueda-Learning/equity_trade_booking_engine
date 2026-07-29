@@ -49,8 +49,8 @@ market-data:
 dashboard:
   snapshots:
     scheduling-enabled: ${DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED:true}
-    interval: ${DASHBOARD_SNAPSHOT_INTERVAL:15m}
-    initial-delay: ${DASHBOARD_SNAPSHOT_INITIAL_DELAY:15m}
+    interval: ${DASHBOARD_SNAPSHOT_INTERVAL:1m}
+    initial-delay: ${DASHBOARD_SNAPSHOT_INITIAL_DELAY:0s}
 
 management:
   endpoints:

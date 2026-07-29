@@ -204,13 +204,13 @@ class PnlDashboardMySqlRedisIT {
         mockMvc.perform(get("/api/dashboard/history")
                         .param("range", "ALL"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.items[0].valuationDate").exists());
         mockMvc.perform(get("/api/dashboard/history")
                         .param("accountId", PRIMARY_ACCOUNT_ID)
                         .param("range", "30D"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(30))
+                .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.items[0].scopeType")
                         .value("ACCOUNT"));
     }
@@ -222,7 +222,7 @@ class PnlDashboardMySqlRedisIT {
         mockMvc.perform(get("/api/dashboard/history")
                         .param("range", "ALL"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1));
+                .andExpect(jsonPath("$.items.length()").value(2));
 
         redisTemplate.execute((RedisCallback<Void>) connection -> {
             connection.serverCommands().flushDb();
@@ -233,7 +233,7 @@ class PnlDashboardMySqlRedisIT {
         mockMvc.perform(get("/api/dashboard/history")
                         .param("range", "ALL"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.items[0].complete").value(true));
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM valuation_snapshots",
