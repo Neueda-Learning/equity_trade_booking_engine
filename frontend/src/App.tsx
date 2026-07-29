@@ -66,7 +66,7 @@ function App() {
         aria-label={t('nav.sidebar')}
       >
         <div className="sidebar-brand">
-          <span className="brand-mark" aria-hidden="true">E</span>
+          <span className="brand-mark" aria-hidden="true">T</span>
           <div className="brand-copy">
             <p>{t('brand.portfolio')}</p>
             <strong>{t('brand.console')}</strong>
@@ -139,7 +139,7 @@ function App() {
             <NavIcon name="menu" />
           </button>
           <div>
-            <small>{t('brand.portfolio')}</small>
+            <small>{t('brand.console')}</small>
             <strong>{t(`nav.${page}`)}</strong>
           </div>
           <span
