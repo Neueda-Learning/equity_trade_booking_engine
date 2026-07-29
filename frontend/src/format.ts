@@ -17,7 +17,7 @@ export function formatMoney(value: number, locale?: string) {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
-    maximumFractionDigits: 6,
+    maximumFractionDigits: 2,
   }).format(value)
 }
 
@@ -29,7 +29,7 @@ export function formatNullableMoney(value: number | null, locale?: string) {
 
 export function formatDecimal(value: number, locale?: string) {
   return new Intl.NumberFormat(activeLocale(locale), {
-    maximumFractionDigits: 6,
+    maximumFractionDigits: 2,
   }).format(value)
 }
 
