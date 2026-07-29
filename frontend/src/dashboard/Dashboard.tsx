@@ -156,6 +156,7 @@ function Dashboard({
           <PositionTable items={dashboard.positions} />
           <HistoryPanel
             history={history}
+            positions={dashboard.positions}
             loading={historyLoading}
             error={historyError}
             range={range}
@@ -304,12 +305,14 @@ function PositionTable({ items }: { items: PositionPnl[] }) {
 
 function HistoryPanel({
   history,
+  positions,
   loading,
   error,
   range,
   onRange,
 }: {
   history: ValuationHistory | null
+  positions: PositionPnl[]
   loading: boolean
   error: string
   range: HistoryRange
@@ -355,6 +358,7 @@ function HistoryPanel({
       {!error && history && history.items.length > 0 && (
         <ValuationChart
           items={history.items}
+          positions={positions}
           range={range}
           updating={loading}
         />
@@ -367,10 +371,12 @@ type ChartSeries = 'market' | 'pnl'
 
 function ValuationChart({
   items,
+  positions,
   range,
   updating,
 }: {
   items: ValuationSnapshot[]
+  positions: PositionPnl[]
   range: HistoryRange
   updating: boolean
 }) {
@@ -378,9 +384,9 @@ function ValuationChart({
   const gradientId = useId().replaceAll(':', '')
   const [series, setSeries] = useState<ChartSeries>('market')
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
-  const width = 900
-  const height = 360
-  const plot = { top: 36, right: 24, bottom: 48, left: 86 }
+  const width = 720
+  const height = 400
+  const plot = { top: 36, right: 24, bottom: 48, left: 80 }
   const values = items.map((item) =>
     series === 'market' ? item.totalMarketValue : item.unrealizedPnl,
   )
@@ -479,13 +485,14 @@ function ValuationChart({
           </button>
         </div>
       </div>
-      <div className="valuation-chart-scroll">
-        <div
-          className={`valuation-chart-canvas ${
-            updating ? 'is-updating' : ''
-          }`}
-          aria-busy={updating}
-        >
+      <div className="chart-visual-grid">
+        <div className="valuation-chart-scroll">
+          <div
+            className={`valuation-chart-canvas ${
+              updating ? 'is-updating' : ''
+            }`}
+            aria-busy={updating}
+          >
           {updating && (
             <span className="chart-updating" role="status">
               <i aria-hidden="true" />
@@ -616,13 +623,163 @@ function ValuationChart({
               </circle>
             ))}
           </svg>
-          <div className="chart-cursor-readout">
-            <span>{formatDateTime(selectedItem.capturedAt, locale)}</span>
-            <strong>{formatMoney(selectedValue, locale)}</strong>
+            <div className="chart-cursor-readout">
+              <span>{formatDateTime(selectedItem.capturedAt, locale)}</span>
+              <strong>{formatMoney(selectedValue, locale)}</strong>
+            </div>
           </div>
         </div>
+        <AllocationPie positions={positions} />
       </div>
     </div>
+  )
+}
+
+const allocationColors = [
+  '#60a5fa',
+  '#f59e0b',
+  '#a78bfa',
+  '#22d3ee',
+  '#f472b6',
+  '#94a3b8',
+]
+
+function AllocationPie({ positions }: { positions: PositionPnl[] }) {
+  const { locale, t } = useI18n()
+  const holdings = positions
+    .filter(
+      (position) =>
+        position.available
+        && position.marketValue !== null
+        && position.marketValue > 0,
+    )
+    .map((position) => ({
+      ticker: position.ticker,
+      value: position.marketValue as number,
+    }))
+    .sort((left, right) => right.value - left.value)
+  const total = holdings.reduce((sum, holding) => sum + holding.value, 0)
+  const leading = holdings.slice(0, 5)
+  const otherValue = holdings
+    .slice(5)
+    .reduce((sum, holding) => sum + holding.value, 0)
+  const slices = [
+    ...leading,
+    ...(otherValue > 0
+      ? [{ ticker: t('dashboard.allocationOther'), value: otherValue }]
+      : []),
+  ].map((slice, index) => ({
+    ...slice,
+    color: allocationColors[index],
+  }))
+  const radius = 76
+  const circumference = 2 * Math.PI * radius
+  let accumulated = 0
+  const segments = slices.map((slice) => {
+    const fraction = slice.value / total
+    const segment = {
+      ...slice,
+      fraction,
+      offset: accumulated,
+    }
+    accumulated += fraction
+    return segment
+  })
+
+  return (
+    <section className="allocation-panel">
+      <div className="allocation-heading">
+        <h4>{t('dashboard.allocationTitle')}</h4>
+        <p>{t('dashboard.allocationDescription')}</p>
+      </div>
+      {segments.length === 0 ? (
+        <div className="allocation-empty">
+          <span aria-hidden="true" />
+          <p>{t('dashboard.allocationEmpty')}</p>
+        </div>
+      ) : (
+        <div className="allocation-content">
+          <svg
+            className="allocation-pie"
+            viewBox="0 0 220 220"
+            role="img"
+            aria-label={t('dashboard.allocationAria', {
+              count: holdings.length,
+            })}
+          >
+            <circle
+              cx="110"
+              cy="110"
+              r={radius}
+              className="allocation-track"
+            />
+            {segments.map((segment) => (
+              <circle
+                key={segment.ticker}
+                cx="110"
+                cy="110"
+                r={radius}
+                fill="none"
+                stroke={segment.color}
+                strokeWidth="36"
+                strokeDasharray={`${
+                  segment.fraction * circumference
+                } ${circumference}`}
+                strokeDashoffset={-segment.offset * circumference}
+                transform="rotate(-90 110 110)"
+                className="allocation-segment"
+                tabIndex={0}
+                aria-label={`${segment.ticker}, ${formatMoney(
+                  segment.value,
+                  locale,
+                )}, ${formatAllocationPercent(
+                  segment.fraction,
+                  locale,
+                )}`}
+              >
+                <title>
+                  {segment.ticker} · {formatMoney(segment.value, locale)} ·{' '}
+                  {formatAllocationPercent(segment.fraction, locale)}
+                </title>
+              </circle>
+            ))}
+            <text
+              x="110"
+              y="100"
+              textAnchor="middle"
+              className="allocation-center-label"
+            >
+              {t('dashboard.allocationTotal')}
+            </text>
+            <text
+              x="110"
+              y="126"
+              textAnchor="middle"
+              className="allocation-center-value"
+            >
+              {formatAxisMoney(total, locale)}
+            </text>
+          </svg>
+          <ol className="allocation-legend">
+            {segments.map((segment) => (
+              <li key={segment.ticker}>
+                <i
+                  aria-hidden="true"
+                  style={{ backgroundColor: segment.color }}
+                />
+                <div>
+                  <strong>{segment.ticker}</strong>
+                  <span>{formatMoney(segment.value, locale)}</span>
+                </div>
+                <b>
+                  {formatAllocationPercent(segment.fraction, locale)}
+                </b>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -712,6 +869,14 @@ function formatAxisMoney(value: number, locale: string) {
     style: 'currency',
     currency: 'USD',
     notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value)
+}
+
+function formatAllocationPercent(value: number, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    style: 'percent',
+    minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(value)
 }

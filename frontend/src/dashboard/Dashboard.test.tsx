@@ -188,6 +188,38 @@ describe('P&L Dashboard', () => {
     expect(screen.getAllByText('$20.123456').length).toBeGreaterThan(0)
   })
 
+  it('shows portfolio allocation beside the valuation curve', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch(
+        dashboard({
+          positions: [
+            position('AAPL', 100, 120, 20, 20),
+            position('MSFT', 100, 80, -20, -20),
+          ],
+        }),
+        history([
+          snapshot('one', '2026-07-27T09:00:00Z', 180, -20),
+          snapshot('two', '2026-07-28T09:00:00Z', 200, 0),
+        ]),
+      ),
+    )
+
+    render(<Dashboard />)
+
+    expect(
+      await screen.findByRole('img', {
+        name: 'Portfolio allocation chart with 2 holdings',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('AAPL, $120.00, 60.0%'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('MSFT, $80.00, 40.0%'),
+    ).toBeInTheDocument()
+  })
+
   it('shows a history server error without hiding dashboard data', async () => {
     vi.stubGlobal(
       'fetch',
