@@ -66,8 +66,10 @@ unrealizedPnl = marketValue − costBasis
 pnlPercent    = unrealizedPnl ÷ costBasis × 100
 ```
 
-Core calculations use backend decimal arithmetic. Missing quotes remain `null`;
-the UI never substitutes a zero market price.
+Core calculations use backend decimal arithmetic. Financial decimal values are
+encoded as JSON strings and remain strings in the browser, preventing
+IEEE-754 rounding during booking and display. Missing quotes remain `null`; the
+UI never substitutes a zero market price.
 
 ## Architecture
 

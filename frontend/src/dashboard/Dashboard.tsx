@@ -19,6 +19,7 @@ import {
   formatSignedMoney,
   formatSignedPercent,
 } from '../format'
+import { localizedStatus, useI18n } from '../i18n'
 import './Dashboard.css'
 
 const ranges: HistoryRange[] = ['1D', '7D', '30D', 'ALL']
@@ -28,6 +29,7 @@ function Dashboard({
 }: {
   onViewActivity?: () => void
 }) {
+  const { t } = useI18n()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState('')
   const [range, setRange] = useState<HistoryRange>('30D')
@@ -44,23 +46,23 @@ function Dashboard({
     getAccounts(controller.signal)
       .then(setAccounts)
       .catch((reason: unknown) => {
-        if (!isAbort(reason)) setError('Dashboard data is unavailable.')
+        if (!isAbort(reason)) setError(t('dashboard.unavailable'))
       })
     return () => controller.abort()
-  }, [])
+  }, [t])
 
   useEffect(() => {
     const controller = new AbortController()
     getDashboard(accountId || undefined, controller.signal)
       .then(setDashboard)
       .catch((reason: unknown) => {
-        if (!isAbort(reason)) setError('Dashboard data is unavailable.')
+        if (!isAbort(reason)) setError(t('dashboard.unavailable'))
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [accountId])
+  }, [accountId, t])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -68,14 +70,14 @@ function Dashboard({
       .then(setHistory)
       .catch((reason: unknown) => {
         if (!isAbort(reason)) {
-          setHistoryError('Valuation history is unavailable.')
+          setHistoryError(t('dashboard.historyUnavailable'))
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) setHistoryLoading(false)
       })
     return () => controller.abort()
-  }, [accountId, range])
+  }, [accountId, range, t])
 
   const refresh = async () => {
     setRefreshing(true)
@@ -87,7 +89,7 @@ function Dashboard({
         await getDashboardHistory(range, accountId || undefined),
       )
     } catch {
-      setError('Dashboard refresh failed.')
+      setError(t('dashboard.refreshFailed'))
     } finally {
       setRefreshing(false)
     }
@@ -111,17 +113,17 @@ function Dashboard({
     <section aria-labelledby="dashboard-heading">
       <div className="dashboard-heading">
         <div>
-          <p className="section-kicker">Portfolio valuation</p>
-          <h2 id="dashboard-heading">Dashboard</h2>
+          <p className="section-kicker">{t('dashboard.kicker')}</p>
+          <h2 id="dashboard-heading">{t('nav.dashboard')}</h2>
         </div>
         <div className="dashboard-controls">
           <label>
-            Account
+            {t('common.account')}
             <select
               value={accountId}
               onChange={(event) => selectAccount(event.target.value)}
             >
-              <option value="">All Accounts</option>
+              <option value="">{t('common.allAccounts')}</option>
               {accounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name}
@@ -134,19 +136,19 @@ function Dashboard({
             onClick={refresh}
             disabled={refreshing || loading}
           >
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            {refreshing ? t('common.refreshing') : t('common.refresh')}
           </button>
         </div>
       </div>
 
-      {loading && <p className="table-state">Loading dashboard…</p>}
+      {loading && <p className="table-state">{t('dashboard.loading')}</p>}
       {error && <p className="table-state table-state--error">{error}</p>}
       {!loading && dashboard && (
         <>
           <DashboardStatus dashboard={dashboard} />
           {dashboard.totals.stale && (
             <p className="notice dashboard-stale-banner" role="status">
-              Cached, stale quotes are being used. Values are not live.
+              {t('dashboard.staleNotice')}
             </p>
           )}
           <Kpis dashboard={dashboard} />
@@ -169,6 +171,7 @@ function Dashboard({
 }
 
 function DashboardStatus({ dashboard }: { dashboard: DashboardResponse }) {
+  const { locale, t } = useI18n()
   const sources = Array.from(
     new Set(
       dashboard.positions
@@ -176,50 +179,51 @@ function DashboardStatus({ dashboard }: { dashboard: DashboardResponse }) {
         .map((position) => position.source),
     ),
   )
-  const source = sources.length > 0 ? sources.join(' + ') : 'NO QUOTES'
+  const source = sources.length > 0 ? sources.join(' + ') : t('status.noQuotes')
   return (
     <div className="dashboard-status">
       <span>
-        Last updated{' '}
+        {t('dashboard.lastUpdated')}{' '}
         <time dateTime={dashboard.capturedAt}>
-          {formatDateTime(dashboard.capturedAt)}
+          {formatDateTime(dashboard.capturedAt, locale)}
         </time>
       </span>
-      <div className="quote-flags" aria-label="Quote status">
-        <span className="flag">SOURCE: {source}</span>
-        {dashboard.totals.mock && <span className="flag">MOCK</span>}
+      <div className="quote-flags" aria-label={t('dashboard.quoteStatusLabel')}>
+        <span className="flag">{t('dashboard.source', { source })}</span>
+        {dashboard.totals.mock && <span className="flag">{t('status.mock')}</span>}
         {dashboard.quoteStatus.cached > 0 && (
-          <span className="flag">CACHED</span>
+          <span className="flag">{t('status.cached')}</span>
         )}
         {dashboard.totals.stale && (
-          <span className="flag flag--warning">STALE</span>
+          <span className="flag flag--warning">{t('status.stale')}</span>
         )}
-        {!dashboard.totals.stale && <span className="flag">FRESH</span>}
+        {!dashboard.totals.stale && <span className="flag">{t('status.fresh')}</span>}
         {!dashboard.totals.complete && (
-          <span className="flag flag--warning">INCOMPLETE</span>
+          <span className="flag flag--warning">{t('status.incomplete')}</span>
         )}
-        {dashboard.totals.complete && <span className="flag">COMPLETE</span>}
+        {dashboard.totals.complete && <span className="flag">{t('status.complete')}</span>}
       </div>
     </div>
   )
 }
 
 function Kpis({ dashboard }: { dashboard: DashboardResponse }) {
+  const { locale, t } = useI18n()
   const totals = dashboard.totals
   const cards = [
-    ['Total Market Value', formatMoney(totals.totalMarketValue)],
-    ['Total Cost Basis', formatMoney(totals.totalCostBasis)],
-    ['Unrealized P&L', formatSignedMoney(totals.totalUnrealizedPnl)],
-    ['Return %', formatSignedPercent(totals.totalPnlPercent)],
-    ['Open Positions', String(totals.positionCount)],
-    ['Unpriced Positions', String(totals.unpricedPositionCount)],
+    [t('dashboard.totalMarketValue'), formatMoney(totals.totalMarketValue, locale), false],
+    [t('dashboard.totalCostBasis'), formatMoney(totals.totalCostBasis, locale), false],
+    [t('common.unrealizedPnl'), formatSignedMoney(totals.totalUnrealizedPnl, locale), true],
+    [t('dashboard.returnPercent'), formatSignedPercent(totals.totalPnlPercent, locale), true],
+    [t('dashboard.openPositions'), String(totals.positionCount), false],
+    [t('dashboard.unpricedPositions'), String(totals.unpricedPositionCount), false],
   ]
   return (
     <div className="metrics dashboard-metrics">
-      {cards.map(([label, value]) => (
-        <article key={label}>
+      {cards.map(([label, value, tracksPnl]) => (
+        <article key={String(label)}>
           <span>{label}</span>
-          <strong className={pnlClass(label, value)}>{value}</strong>
+          <strong className={tracksPnl ? pnlClass(String(value)) : ''}>{value}</strong>
         </article>
       ))}
     </div>
@@ -227,61 +231,62 @@ function Kpis({ dashboard }: { dashboard: DashboardResponse }) {
 }
 
 function PositionTable({ items }: { items: PositionPnl[] }) {
+  const { locale, t } = useI18n()
   return (
     <div className="panel dashboard-panel">
-      <h3>Position P&amp;L</h3>
+      <h3>{t('dashboard.positionPnl')}</h3>
       {items.length === 0 ? (
-        <p className="table-state">No open positions.</p>
+        <p className="table-state">{t('dashboard.noPositions')}</p>
       ) : (
         <div className="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Ticker</th>
-                <th>Quantity</th>
-                <th>Average cost</th>
-                <th>Market price</th>
-                <th>Market value</th>
-                <th>Unrealized P&amp;L</th>
-                <th>Return</th>
-                <th>Quote status</th>
+                <th>{t('common.ticker')}</th>
+                <th>{t('common.quantity')}</th>
+                <th>{t('common.averageCost')}</th>
+                <th>{t('common.marketPrice')}</th>
+                <th>{t('common.marketValue')}</th>
+                <th>{t('common.unrealizedPnl')}</th>
+                <th>{t('common.return')}</th>
+                <th>{t('common.quoteStatus')}</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.ticker}>
                   <td><strong>{item.ticker}</strong></td>
-                  <td>{formatDecimal(item.quantity)}</td>
-                  <td>{formatMoney(item.averageCost)}</td>
-                  <td>{formatNullableMoney(item.marketPrice)}</td>
-                  <td>{formatNullableMoney(item.marketValue)}</td>
+                  <td>{formatDecimal(item.quantity, locale)}</td>
+                  <td>{formatMoney(item.averageCost, locale)}</td>
+                  <td>{formatNullableMoney(item.marketPrice, locale)}</td>
+                  <td>{formatNullableMoney(item.marketValue, locale)}</td>
                   <td className={valueClass(item.unrealizedPnl)}>
                     {item.available
-                      ? formatSignedMoney(item.unrealizedPnl)
-                      : 'Unavailable'}
+                      ? formatSignedMoney(item.unrealizedPnl, locale)
+                      : t('common.unavailable')}
                   </td>
                   <td className={valueClass(item.pnlPercent)}>
                     {item.available
-                      ? formatSignedPercent(item.pnlPercent)
-                      : 'Unavailable'}
+                      ? formatSignedPercent(item.pnlPercent, locale)
+                      : t('common.unavailable')}
                   </td>
                   <td>
                     {!item.available ? (
-                      <span className="flag flag--warning">UNPRICED</span>
+                      <span className="flag flag--warning">{t('status.unpriced')}</span>
                     ) : (
                       <div className="quote-flags">
-                        {item.mock && <span className="flag">MOCK</span>}
+                        {item.mock && <span className="flag">{t('status.mock')}</span>}
                         {item.source === 'FINNHUB' && (
                           <span className="flag">FINNHUB</span>
                         )}
                         {item.source === 'FINNHUB' &&
                           !item.cached &&
                           !item.stale && (
-                            <span className="flag">LIVE</span>
+                            <span className="flag">{t('status.live')}</span>
                           )}
-                        {item.cached && <span className="flag">CACHED</span>}
+                        {item.cached && <span className="flag">{t('status.cached')}</span>}
                         {item.stale && (
-                          <span className="flag flag--warning">STALE</span>
+                          <span className="flag flag--warning">{t('status.stale')}</span>
                         )}
                       </div>
                     )}
@@ -309,14 +314,15 @@ function HistoryPanel({
   range: HistoryRange
   onRange: (range: HistoryRange) => void
 }) {
+  const { t } = useI18n()
   return (
     <div className="panel dashboard-panel">
       <div className="history-heading">
         <div>
-          <h3>Valuation history</h3>
-          <p>Market value and unrealized P&amp;L snapshots</p>
+          <h3>{t('dashboard.history')}</h3>
+          <p>{t('dashboard.historyDescription')}</p>
         </div>
-        <div className="range-tabs" aria-label="History range">
+        <div className="range-tabs" aria-label={t('dashboard.historyRange')}>
           {ranges.map((item) => (
             <button
               key={item}
@@ -329,11 +335,11 @@ function HistoryPanel({
           ))}
         </div>
       </div>
-      {loading && <p className="table-state">Loading valuation history…</p>}
+      {loading && <p className="table-state">{t('dashboard.loadingHistory')}</p>}
       {error && <p className="table-state table-state--error">{error}</p>}
       {!loading && !error && history?.items.length === 0 && (
         <p className="table-state">
-          No valuation snapshots yet. Refresh the dashboard to capture one.
+          {t('dashboard.noSnapshots')}
         </p>
       )}
       {!loading && !error && history && history.items.length > 0 && (
@@ -344,6 +350,7 @@ function HistoryPanel({
 }
 
 function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
+  const { locale, t } = useI18n()
   const width = 800
   const height = 260
   const padding = 34
@@ -377,15 +384,17 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
   return (
     <div className="valuation-chart">
       <div className="chart-legend">
-        <span><i className="legend-market" />Market Value</span>
-        <span><i className="legend-pnl" />Unrealized P&amp;L</span>
+        <span><i className="legend-market" />{t('dashboard.chartMarketValue')}</span>
+        <span><i className="legend-pnl" />{t('common.unrealizedPnl')}</span>
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label={`Valuation history chart with ${items.length} ${
-          items.length === 1 ? 'point' : 'points'
-        }`}
+        aria-label={t('dashboard.chartAria', {
+          count: items.length,
+          points:
+            items.length === 1 ? t('dashboard.point') : t('dashboard.points'),
+        })}
       >
         <line
           x1={padding}
@@ -404,7 +413,7 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
               r="6"
               className="chart-market-point"
             >
-              <title>{tooltip(item)}</title>
+              <title>{tooltip(item, locale, t)}</title>
             </circle>
             <circle
               cx={pnl[index].x}
@@ -412,7 +421,7 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
               r="5"
               className="chart-pnl-point"
             >
-              <title>{tooltip(item)}</title>
+              <title>{tooltip(item, locale, t)}</title>
             </circle>
           </g>
         ))}
@@ -428,12 +437,13 @@ function RecentActivity({
   dashboard: DashboardResponse
   onViewActivity?: () => void
 }) {
+  const { locale, t } = useI18n()
   return (
     <div className="panel dashboard-panel dashboard-activity">
       <div className="recent-activity-heading">
         <div>
-          <p className="section-kicker">Latest ledger events</p>
-          <h3>Recent Activity</h3>
+          <p className="section-kicker">{t('dashboard.latestEvents')}</p>
+          <h3>{t('dashboard.recentActivity')}</h3>
         </div>
         {onViewActivity && (
           <button
@@ -441,12 +451,12 @@ function RecentActivity({
             className="activity-link"
             onClick={onViewActivity}
           >
-            View all activity
+            {t('dashboard.viewAll')}
           </button>
         )}
       </div>
       {dashboard.recentActivity.length === 0 ? (
-        <p className="table-state">No activity yet.</p>
+        <p className="table-state">{t('dashboard.noActivity')}</p>
       ) : (
         <ol className="activity-timeline">
           {dashboard.recentActivity.map((trade) => (
@@ -461,22 +471,28 @@ function RecentActivity({
                 <div>
                   <strong>{trade.ticker}</strong>
                   <span className={`side-pill side-pill--${trade.side.toLowerCase()}`}>
-                    {trade.side}
+                    {localizedStatus(trade.side, t)}
                   </span>
-                  <span className="status-pill">{trade.status}</span>
+                  <span className="status-pill">{localizedStatus(trade.status, t)}</span>
                 </div>
                 <p>
-                  {formatDecimal(trade.quantity)} shares at{' '}
-                  {formatMoney(trade.tradePrice)}
+                  {t('dashboard.sharesAt', {
+                    quantity: formatDecimal(trade.quantity, locale),
+                    price: formatMoney(trade.tradePrice, locale),
+                  })}
                 </p>
                 <small>
-                  {trade.accountName} · Executed{' '}
-                  {formatDateTime(trade.executedAt)}
+                  {t('dashboard.executed', {
+                    account: trade.accountName,
+                    date: formatDateTime(trade.executedAt, locale),
+                  })}
                 </small>
                 {trade.cancelledAt && (
                   <small className="activity-cancelled">
-                    {trade.cancellationReason ?? 'CANCELLED'} ·{' '}
-                    {formatDateTime(trade.cancelledAt)}
+                    {trade.cancellationReason
+                      ? localizedStatus(trade.cancellationReason, t)
+                      : t('status.cancelled')} ·{' '}
+                    {formatDateTime(trade.cancelledAt, locale)}
                   </small>
                 )}
               </div>
@@ -488,13 +504,17 @@ function RecentActivity({
   )
 }
 
-function tooltip(item: ValuationSnapshot) {
+function tooltip(
+  item: ValuationSnapshot,
+  locale: string,
+  t: ReturnType<typeof useI18n>['t'],
+) {
   const date = new Date(item.capturedAt)
   return [
-    `UTC: ${date.toISOString()}`,
-    `Local: ${date.toLocaleString()}`,
-    `Market Value: ${item.totalMarketValue}`,
-    `Unrealized P&L: ${item.unrealizedPnl}`,
+    `${t('dashboard.tooltipUtc')}: ${date.toISOString()}`,
+    `${t('dashboard.tooltipLocal')}: ${date.toLocaleString(locale)}`,
+    `${t('dashboard.chartMarketValue')}: ${item.totalMarketValue}`,
+    `${t('common.unrealizedPnl')}: ${item.unrealizedPnl}`,
   ].join(' · ')
 }
 
@@ -503,8 +523,7 @@ function valueClass(value: number | null) {
   return value > 0 ? 'value-positive' : 'value-negative'
 }
 
-function pnlClass(label: string, value: string) {
-  if (label !== 'Unrealized P&L' && label !== 'Return %') return ''
+function pnlClass(value: string) {
   if (value.startsWith('+')) return 'value-positive'
   if (value.startsWith('−')) return 'value-negative'
   return 'value-neutral'
