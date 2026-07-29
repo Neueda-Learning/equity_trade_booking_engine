@@ -63,9 +63,11 @@ public class BookingDashboardContextAdapter
                             trade.ticker(),
                             trade.side(),
                             trade.quantity(),
+                            trade.tradePrice(),
                             trade.status(),
                             trade.executedAt(),
-                            trade.cancelledAt());
+                            trade.cancelledAt(),
+                            trade.cancellationReason());
                 })
                 .toList();
     }

@@ -26,6 +26,8 @@ export interface Trade {
   status: 'BOOKED' | 'CANCELLED'
   createdAt: string
   cancelledAt: string | null
+  cancellationReason: 'CANCELLED' | 'DELETED' | 'AMENDED' | null
+  supersedesTradeId: string | null
 }
 
 export interface TradePage {
@@ -43,6 +45,22 @@ export interface TradeInput {
   quantity: number
   tradePrice: number
   executedAt: string
+}
+
+export interface AmendTradeResponse {
+  cancelledTrade: Trade
+  replacementTrade: Trade
+}
+
+export interface Instrument {
+  ticker: string
+  name: string
+  exchange: string
+  type: string
+}
+
+export interface InstrumentSearchResponse {
+  items: Instrument[]
 }
 
 export interface Position {
@@ -130,9 +148,11 @@ export interface DashboardActivity {
   ticker: string
   side: 'BUY' | 'SELL'
   quantity: number
+  tradePrice: number
   status: 'BOOKED' | 'CANCELLED'
   executedAt: string
   cancelledAt: string | null
+  cancellationReason: 'CANCELLED' | 'DELETED' | 'AMENDED' | null
 }
 
 export interface DashboardResponse {
@@ -265,6 +285,31 @@ export function cancelTrade(id: string) {
   return request<Trade>(`/api/trades/${id}/cancel`, {
     method: 'POST',
   })
+}
+
+export function deleteTrade(id: string) {
+  return request<Trade>(`/api/trades/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+export function amendTrade(id: string, input: TradeInput) {
+  return request<AmendTradeResponse>(`/api/trades/${id}/amend`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export function searchInstruments(
+  query: string,
+  signal?: AbortSignal,
+) {
+  const search = new URLSearchParams({ q: query, limit: '10' })
+  return request<InstrumentSearchResponse>(
+    `/api/market-data/instruments/search?${search}`,
+    { signal },
+  )
 }
 
 export function getPositions(accountId?: string, signal?: AbortSignal) {

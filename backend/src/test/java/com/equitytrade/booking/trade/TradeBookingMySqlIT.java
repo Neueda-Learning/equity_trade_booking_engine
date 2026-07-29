@@ -39,6 +39,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -90,7 +91,8 @@ class TradeBookingMySqlIT {
                 """
                         SELECT COUNT(*)
                         FROM flyway_schema_history
-                        WHERE version IN ('1', '2', '3', '4') AND success = 1
+                        WHERE version IN ('1', '2', '3', '4', '5', '6')
+                          AND success = 1
                         """,
                 Integer.class);
         Integer accountTableCount = jdbcTemplate.queryForObject(
@@ -145,14 +147,46 @@ class TradeBookingMySqlIT {
                           )
                         """,
                 Integer.class);
+        Integer auditColumnCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_schema = DATABASE()
+                          AND table_name = 'trades'
+                          AND column_name IN (
+                            'cancellation_reason',
+                            'supersedes_trade_id'
+                          )
+                        """,
+                Integer.class);
+        Integer auditForeignKeyCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.referential_constraints
+                        WHERE constraint_schema = DATABASE()
+                          AND constraint_name = 'fk_trades_supersedes_trade'
+                        """,
+                Integer.class);
+        Integer auditIndexCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.statistics
+                        WHERE table_schema = DATABASE()
+                          AND table_name = 'trades'
+                          AND index_name = 'uk_trades_supersedes_trade'
+                        """,
+                Integer.class);
 
-        assertThat(successfulMigrations).isEqualTo(4);
+        assertThat(successfulMigrations).isEqualTo(6);
         assertThat(accountTableCount).isEqualTo(1);
         assertThat(foreignKeyCount).isEqualTo(1);
         assertThat(historicalAccountId).isEqualTo(PRIMARY_ACCOUNT_ID);
         assertThat(positionIndexCount).isEqualTo(6);
         assertThat(cancelledColumnCount).isEqualTo(1);
         assertThat(lifecycleConstraintCount).isEqualTo(2);
+        assertThat(auditColumnCount).isEqualTo(2);
+        assertThat(auditForeignKeyCount).isEqualTo(1);
+        assertThat(auditIndexCount).isEqualTo(1);
     }
 
     @Test
@@ -405,6 +439,91 @@ class TradeBookingMySqlIT {
                         .value(10))
                 .andExpect(jsonPath("$[?(@.ticker == 'RSTRT')].costBasis")
                         .value(250));
+    }
+
+    @Test
+    @Order(8)
+    void persistsAuditPreservedDeletionAndAmendmentInMySql()
+            throws Exception {
+        Instant executedAt = Instant.now().minusSeconds(20)
+                .truncatedTo(ChronoUnit.MICROS);
+        MvcResult deletedBuy = mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(
+                                PRIMARY_ACCOUNT_ID,
+                                "MISS",
+                                "BUY",
+                                new BigDecimal("2"),
+                                new BigDecimal("11"),
+                                executedAt)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String deletedId = objectMapper.readTree(
+                        deletedBuy.getResponse().getContentAsString())
+                .path("id").asText();
+        mockMvc.perform(delete("/api/trades/{id}", deletedId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cancellationReason").value("DELETED"));
+
+        MvcResult originalBuy = mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(
+                                PRIMARY_ACCOUNT_ID,
+                                "FAIL",
+                                "BUY",
+                                new BigDecimal("3"),
+                                new BigDecimal("12"),
+                                executedAt)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String originalId = objectMapper.readTree(
+                        originalBuy.getResponse().getContentAsString())
+                .path("id").asText();
+        MvcResult amendment = mockMvc.perform(post(
+                                "/api/trades/{id}/amend",
+                                originalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(
+                                PRIMARY_ACCOUNT_ID,
+                                "FAIL",
+                                "BUY",
+                                new BigDecimal("5"),
+                                new BigDecimal("13"),
+                                executedAt.plusSeconds(1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cancelledTrade.cancellationReason")
+                        .value("AMENDED"))
+                .andExpect(jsonPath("$.replacementTrade.supersedesTradeId")
+                        .value(originalId))
+                .andReturn();
+        String replacementId = objectMapper.readTree(
+                        amendment.getResponse().getContentAsString())
+                .path("replacementTrade").path("id").asText();
+
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT cancellation_reason
+                        FROM trades
+                        WHERE id = ?
+                        """,
+                String.class,
+                deletedId)).isEqualTo("DELETED");
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT cancellation_reason
+                        FROM trades
+                        WHERE id = ?
+                        """,
+                String.class,
+                originalId)).isEqualTo("AMENDED");
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT supersedes_trade_id
+                        FROM trades
+                        WHERE id = ?
+                        """,
+                String.class,
+                replacementId)).isEqualTo(originalId);
     }
 
     private int concurrentSell(

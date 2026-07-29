@@ -24,6 +24,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -178,6 +179,127 @@ class TradeLifecyclePositionIntegrationTests {
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.errors.id").value("must be a valid UUID"));
+    }
+
+    @Test
+    void deletesTradeAsAnIdempotentAuditPreservedCancellation()
+            throws Exception {
+        String buyId = trade(PRIMARY_ACCOUNT_ID, "AAPL", "BUY", "5", "10",
+                "2026-07-28T07:00:00Z", 201);
+
+        MvcResult firstDelete = mockMvc.perform(delete("/api/trades/{id}", buyId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(buyId))
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.cancellationReason").value("DELETED"))
+                .andExpect(jsonPath("$.cancelledAt").isNotEmpty())
+                .andReturn();
+        String cancelledAt = objectMapper.readTree(
+                        firstDelete.getResponse().getContentAsString())
+                .path("cancelledAt").asText();
+
+        mockMvc.perform(delete("/api/trades/{id}", buyId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cancelledAt").value(cancelledAt))
+                .andExpect(jsonPath("$.cancellationReason").value("DELETED"));
+        mockMvc.perform(get("/api/trades"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '" + buyId + "')]",
+                        hasSize(1)));
+        mockMvc.perform(get("/api/positions")
+                        .param("accountId", PRIMARY_ACCOUNT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void amendsTradeByCancellingOriginalAndCreatingLinkedReplacement()
+            throws Exception {
+        String originalId = trade(
+                PRIMARY_ACCOUNT_ID,
+                "MSFT",
+                "BUY",
+                "5",
+                "10",
+                "2026-07-28T07:00:00Z",
+                201);
+
+        MvcResult amendment = mockMvc.perform(post(
+                                "/api/trades/{id}/amend",
+                                originalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "accountId", PRIMARY_ACCOUNT_ID,
+                                "ticker", "MSFT",
+                                "side", "BUY",
+                                "quantity", new BigDecimal("8"),
+                                "tradePrice", new BigDecimal("12"),
+                                "executedAt",
+                                Instant.parse("2026-07-28T07:05:00Z")))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cancelledTrade.id").value(originalId))
+                .andExpect(jsonPath("$.cancelledTrade.status")
+                        .value("CANCELLED"))
+                .andExpect(jsonPath("$.cancelledTrade.cancellationReason")
+                        .value("AMENDED"))
+                .andExpect(jsonPath("$.replacementTrade.status")
+                        .value("BOOKED"))
+                .andExpect(jsonPath("$.replacementTrade.supersedesTradeId")
+                        .value(originalId))
+                .andExpect(jsonPath("$.replacementTrade.quantity").value(8))
+                .andReturn();
+        String replacementId = objectMapper.readTree(
+                        amendment.getResponse().getContentAsString())
+                .path("replacementTrade").path("id").asText();
+
+        mockMvc.perform(get("/api/trades"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '" + originalId + "')]",
+                        hasSize(1)))
+                .andExpect(jsonPath("$.items[?(@.id == '" + replacementId + "')]",
+                        hasSize(1)));
+        mockMvc.perform(get("/api/positions")
+                        .param("accountId", PRIMARY_ACCOUNT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].ticker").value("MSFT"))
+                .andExpect(jsonPath("$[0].quantity").value(8))
+                .andExpect(jsonPath("$[0].costBasis").value(96));
+    }
+
+    @Test
+    void rejectsAmendmentThatWouldInvalidateLaterSellAtomically()
+            throws Exception {
+        String buyId = trade(PRIMARY_ACCOUNT_ID, "NVDA", "BUY", "10", "50",
+                "2026-07-28T07:00:00Z", 201);
+        trade(PRIMARY_ACCOUNT_ID, "NVDA", "SELL", "8", "60",
+                "2026-07-28T07:10:00Z", 201);
+
+        mockMvc.perform(post("/api/trades/{id}/amend", buyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "accountId", PRIMARY_ACCOUNT_ID,
+                                "ticker", "NVDA",
+                                "side", "BUY",
+                                "quantity", new BigDecimal("5"),
+                                "tradePrice", new BigDecimal("50"),
+                                "executedAt",
+                                Instant.parse("2026-07-28T07:00:00Z")))))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors.quantity",
+                        containsString("available at execution time")));
+
+        mockMvc.perform(get("/api/trades"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '" + buyId
+                                + "')].status")
+                        .value("BOOKED"))
+                .andExpect(jsonPath("$.totalElements").value(2));
+        mockMvc.perform(get("/api/positions")
+                        .param("accountId", PRIMARY_ACCOUNT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].quantity").value(2));
     }
 
     private String createAccount() throws Exception {

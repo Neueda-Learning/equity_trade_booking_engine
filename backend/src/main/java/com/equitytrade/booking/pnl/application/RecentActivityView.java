@@ -13,9 +13,11 @@ public record RecentActivityView(
         String ticker,
         String side,
         BigDecimal quantity,
+        BigDecimal tradePrice,
         String status,
         Instant executedAt,
-        Instant cancelledAt) {
+        Instant cancelledAt,
+        String cancellationReason) {
 
     static RecentActivityView from(DashboardActivity activity) {
         return new RecentActivityView(
@@ -25,8 +27,10 @@ public record RecentActivityView(
                 activity.ticker(),
                 activity.side(),
                 PnlDecimal.api(activity.quantity()),
+                PnlDecimal.api(activity.tradePrice()),
                 activity.status(),
                 activity.executedAt(),
-                activity.cancelledAt());
+                activity.cancelledAt(),
+                activity.cancellationReason());
     }
 }

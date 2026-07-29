@@ -215,6 +215,89 @@ jq --exit-status --arg accountId "$ACCOUNT_ID" \
 
 readonly BUY_EXECUTED_AT="$(date -u -d '10 seconds ago' +%Y-%m-%dT%H:%M:%SZ)"
 readonly SELL_EXECUTED_AT="$(date -u -d '5 seconds ago' +%Y-%m-%dT%H:%M:%SZ)"
+
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/market-data/instruments/search?q=apple&limit=10" \
+  >"$LOG_DIR/instrument-search.json"
+jq --exit-status '
+  any(.items[];
+    .ticker == "AAPL" and
+    .exchange == "US" and
+    .type == "Common Stock"
+  )
+' "$LOG_DIR/instrument-search.json" >/dev/null
+
+jq --null-input \
+  --arg accountId "$ACCOUNT_ID" \
+  --arg executedAt "$BUY_EXECUTED_AT" \
+  '{
+    accountId: $accountId,
+    ticker: "AAPL",
+    side: "BUY",
+    quantity: 1,
+    tradePrice: 10,
+    executedAt: $executedAt
+  }' >"$LOG_DIR/amend-original-request.json"
+amend_original_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/amend-original-response.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data-binary "@$LOG_DIR/amend-original-request.json" \
+  "$BACKEND_URL/api/trades")"
+assert_response 201 application/json "$amend_original_metadata"
+readonly AMEND_ORIGINAL_ID="$(jq --raw-output '.id' \
+  "$LOG_DIR/amend-original-response.json")"
+
+jq --null-input \
+  --arg accountId "$ACCOUNT_ID" \
+  --arg executedAt "$BUY_EXECUTED_AT" \
+  '{
+    accountId: $accountId,
+    ticker: "AAPL",
+    side: "BUY",
+    quantity: 2,
+    tradePrice: 11,
+    executedAt: $executedAt
+  }' >"$LOG_DIR/amend-request.json"
+amend_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/amend-response.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data-binary "@$LOG_DIR/amend-request.json" \
+  "$BACKEND_URL/api/trades/$AMEND_ORIGINAL_ID/amend")"
+assert_response 200 application/json "$amend_metadata"
+jq --exit-status --arg originalId "$AMEND_ORIGINAL_ID" '
+  .cancelledTrade.id == $originalId and
+  .cancelledTrade.status == "CANCELLED" and
+  .cancelledTrade.cancellationReason == "AMENDED" and
+  .replacementTrade.status == "BOOKED" and
+  .replacementTrade.supersedesTradeId == $originalId and
+  .replacementTrade.quantity == 2
+' "$LOG_DIR/amend-response.json" >/dev/null
+readonly AMEND_REPLACEMENT_ID="$(jq --raw-output \
+  '.replacementTrade.id' "$LOG_DIR/amend-response.json")"
+
+delete_metadata="$(curl --silent --show-error \
+  --output "$LOG_DIR/delete-response.json" \
+  --write-out '%{http_code}|%{content_type}' \
+  --request DELETE \
+  "$BACKEND_URL/api/trades/$AMEND_REPLACEMENT_ID")"
+assert_response 200 application/json "$delete_metadata"
+jq --exit-status --arg replacementId "$AMEND_REPLACEMENT_ID" '
+  .id == $replacementId and
+  .status == "CANCELLED" and
+  .cancellationReason == "DELETED" and
+  (.cancelledAt | length > 0)
+' "$LOG_DIR/delete-response.json" >/dev/null
+curl --fail --silent --show-error \
+  "$BACKEND_URL/api/positions?accountId=$ACCOUNT_ID" \
+  >"$LOG_DIR/positions-after-delete.json"
+jq --exit-status \
+  'all(.[]; .ticker != "AAPL")' \
+  "$LOG_DIR/positions-after-delete.json" >/dev/null
+
 jq --null-input \
   --arg accountId "$ACCOUNT_ID" \
   --arg executedAt "$BUY_EXECUTED_AT" \
@@ -630,4 +713,4 @@ jq --exit-status --argjson expected "$VALID_TOTAL" \
   '.totalElements == $expected' \
   "$LOG_DIR/trades-after-invalid.json" >/dev/null
 
-echo "Compose smoke passed for Finnhub stub resilience, Redis stale fallback, P&L, MySQL history, and trade lifecycle."
+echo "Compose smoke passed for instrument search, audit amendment/deletion, Finnhub stub resilience, Redis stale fallback, P&L, MySQL history, and trade lifecycle."

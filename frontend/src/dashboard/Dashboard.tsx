@@ -23,7 +23,11 @@ import './Dashboard.css'
 
 const ranges: HistoryRange[] = ['1D', '7D', '30D', 'ALL']
 
-function Dashboard() {
+function Dashboard({
+  onViewActivity,
+}: {
+  onViewActivity?: () => void
+}) {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState('')
   const [range, setRange] = useState<HistoryRange>('30D')
@@ -154,7 +158,10 @@ function Dashboard() {
             range={range}
             onRange={selectRange}
           />
-          <RecentActivity dashboard={dashboard} />
+          <RecentActivity
+            dashboard={dashboard}
+            onViewActivity={onViewActivity}
+          />
         </>
       )}
     </section>
@@ -414,21 +421,68 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
   )
 }
 
-function RecentActivity({ dashboard }: { dashboard: DashboardResponse }) {
+function RecentActivity({
+  dashboard,
+  onViewActivity,
+}: {
+  dashboard: DashboardResponse
+  onViewActivity?: () => void
+}) {
   return (
     <div className="panel dashboard-panel dashboard-activity">
-      <h3>Recent Activity</h3>
+      <div className="recent-activity-heading">
+        <div>
+          <p className="section-kicker">Latest ledger events</p>
+          <h3>Recent Activity</h3>
+        </div>
+        {onViewActivity && (
+          <button
+            type="button"
+            className="activity-link"
+            onClick={onViewActivity}
+          >
+            View all activity
+          </button>
+        )}
+      </div>
       {dashboard.recentActivity.length === 0 ? (
         <p className="table-state">No activity yet.</p>
       ) : (
-        <ul>
+        <ol className="activity-timeline">
           {dashboard.recentActivity.map((trade) => (
             <li key={trade.id}>
-              <strong>{trade.ticker}</strong> {trade.side} · {trade.status}
-              {' · '}{trade.accountName}
+              <span
+                className={`activity-marker activity-marker--${trade.side.toLowerCase()}`}
+                aria-hidden="true"
+              >
+                {trade.side === 'BUY' ? '↓' : '↑'}
+              </span>
+              <div className="activity-summary">
+                <div>
+                  <strong>{trade.ticker}</strong>
+                  <span className={`side-pill side-pill--${trade.side.toLowerCase()}`}>
+                    {trade.side}
+                  </span>
+                  <span className="status-pill">{trade.status}</span>
+                </div>
+                <p>
+                  {formatDecimal(trade.quantity)} shares at{' '}
+                  {formatMoney(trade.tradePrice)}
+                </p>
+                <small>
+                  {trade.accountName} · Executed{' '}
+                  {formatDateTime(trade.executedAt)}
+                </small>
+                {trade.cancelledAt && (
+                  <small className="activity-cancelled">
+                    {trade.cancellationReason ?? 'CANCELLED'} ·{' '}
+                    {formatDateTime(trade.cancelledAt)}
+                  </small>
+                )}
+              </div>
             </li>
           ))}
-        </ul>
+        </ol>
       )}
     </div>
   )

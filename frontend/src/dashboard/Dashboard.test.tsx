@@ -212,6 +212,45 @@ describe('P&L Dashboard', () => {
       await screen.findByText('Dashboard data is unavailable.'),
     ).toBeInTheDocument()
   })
+
+  it('renders recent activity as an audit-aware timeline', async () => {
+    const onViewActivity = vi.fn()
+    vi.stubGlobal(
+      'fetch',
+      routedFetch(
+        dashboard({
+          recentActivity: [
+            {
+              id: 'trade-1',
+              accountId: 'primary',
+              accountName: 'Primary Account',
+              ticker: 'AAPL',
+              side: 'SELL',
+              quantity: 2,
+              tradePrice: 125.5,
+              status: 'CANCELLED',
+              executedAt: '2026-07-28T08:30:00Z',
+              cancelledAt: '2026-07-28T09:00:00Z',
+              cancellationReason: 'DELETED',
+            },
+          ],
+        }),
+        history([]),
+      ),
+    )
+
+    render(<Dashboard onViewActivity={onViewActivity} />)
+
+    expect(await screen.findByText('AAPL')).toBeInTheDocument()
+    expect(screen.getByText('SELL')).toBeInTheDocument()
+    expect(screen.getByText('CANCELLED')).toBeInTheDocument()
+    expect(screen.getByText('2 shares at $125.50')).toBeInTheDocument()
+    expect(screen.getByText(/DELETED/)).toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'View all activity' }),
+    )
+    expect(onViewActivity).toHaveBeenCalledOnce()
+  })
 })
 
 function routedFetch(
@@ -275,6 +314,19 @@ function dashboard(overrides?: {
   complete?: boolean
   stale?: boolean
   unpriced?: number
+  recentActivity?: {
+    id: string
+    accountId: string
+    accountName: string
+    ticker: string
+    side: 'BUY' | 'SELL'
+    quantity: number
+    tradePrice: number
+    status: 'BOOKED' | 'CANCELLED'
+    executedAt: string
+    cancelledAt: string | null
+    cancellationReason: 'CANCELLED' | 'DELETED' | 'AMENDED' | null
+  }[]
 }) {
   const positions = overrides?.positions ?? []
   const priced = positions.filter((item) => item.available)
@@ -307,7 +359,7 @@ function dashboard(overrides?: {
     positions,
     accountCount: 2,
     activeAccountCount: 2,
-    recentActivity: [],
+    recentActivity: overrides?.recentActivity ?? [],
     quoteStatus: {
       available: priced.length,
       unavailable: overrides?.unpriced ?? 0,

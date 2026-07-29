@@ -116,4 +116,40 @@ class MarketDataApiIntegrationTests {
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.APPLICATION_PROBLEM_JSON));
     }
+
+    @Test
+    void searchesSupportedMockInstrumentsByTickerOrCompanyName()
+            throws Exception {
+        mockMvc.perform(get("/api/market-data/instruments/search")
+                        .param("q", "apple"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].ticker").value("AAPL"))
+                .andExpect(jsonPath("$.items[0].name").value("APPLE INC"))
+                .andExpect(jsonPath("$.items[0].exchange").value("US"))
+                .andExpect(jsonPath("$.items[0].type")
+                        .value("Common Stock"));
+
+        mockMvc.perform(get("/api/market-data/instruments/search")
+                        .param("q", "not-listed"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty());
+    }
+
+    @Test
+    void validatesInstrumentSearchQueryAndLimitAsProblemDetails()
+            throws Exception {
+        mockMvc.perform(get("/api/market-data/instruments/search")
+                        .param("q", " "))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors.q").value("is required"));
+
+        mockMvc.perform(get("/api/market-data/instruments/search")
+                        .param("q", "AAPL")
+                        .param("limit", "21"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.limit")
+                        .value("must be between 1 and 20"));
+    }
 }

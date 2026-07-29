@@ -38,6 +38,19 @@ const trade = {
   status: 'BOOKED',
   createdAt: '2026-07-28T06:30:30Z',
   cancelledAt: null,
+  cancellationReason: null,
+  supersedesTradeId: null,
+}
+
+const aaplSearch = {
+  items: [
+    {
+      ticker: 'AAPL',
+      name: 'APPLE INC',
+      exchange: 'US',
+      type: 'Common Stock',
+    },
+  ],
 }
 
 describe('multi-account activity', () => {
@@ -49,6 +62,7 @@ describe('multi-account activity', () => {
       .fn()
       .mockResolvedValueOnce(response([primary, retirement]))
       .mockResolvedValueOnce(response(emptyPage))
+      .mockResolvedValueOnce(response(aaplSearch))
       .mockResolvedValueOnce(response(sellTrade, true, 201))
       .mockResolvedValueOnce(response([primary, retirement]))
       .mockResolvedValueOnce(
@@ -64,7 +78,7 @@ describe('multi-account activity', () => {
     fireEvent.change(screen.getByLabelText('Side'), {
       target: { value: 'SELL' },
     })
-    fillTrade()
+    await fillTrade()
     fireEvent.click(screen.getByRole('button', { name: 'Book SELL trade' }))
 
     expect(
@@ -72,7 +86,7 @@ describe('multi-account activity', () => {
     ).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('AAPL')).toBeInTheDocument())
     expect(screen.getAllByText('Retirement').length).toBeGreaterThan(0)
-    const request = JSON.parse(fetchMock.mock.calls[2][1].body)
+    const request = JSON.parse(fetchMock.mock.calls[3][1].body)
     expect(request.accountId).toBe(retirement.id)
     expect(request.side).toBe('SELL')
   })
@@ -125,6 +139,7 @@ describe('multi-account activity', () => {
         .fn()
         .mockResolvedValueOnce(response([primary]))
         .mockResolvedValueOnce(response(emptyPage))
+        .mockResolvedValueOnce(response(aaplSearch))
         .mockResolvedValueOnce(
           response(
             {
@@ -138,7 +153,7 @@ describe('multi-account activity', () => {
     )
     render(<TradeBooking />)
     await screen.findByText('No trades booked yet.')
-    fillTrade()
+    await fillTrade()
     fireEvent.click(screen.getByRole('button', { name: 'Book BUY trade' }))
     expect(
       await screen.findByText('must match ticker format'),
@@ -152,6 +167,7 @@ describe('multi-account activity', () => {
         .fn()
         .mockResolvedValueOnce(response([primary]))
         .mockResolvedValueOnce(response(emptyPage))
+        .mockResolvedValueOnce(response(aaplSearch))
         .mockResolvedValueOnce(
           response(
             {
@@ -171,7 +187,7 @@ describe('multi-account activity', () => {
     fireEvent.change(screen.getByLabelText('Side'), {
       target: { value: 'SELL' },
     })
-    fillTrade()
+    await fillTrade()
     fireEvent.click(screen.getByRole('button', { name: 'Book SELL trade' }))
     expect(
       await screen.findByText(
@@ -180,11 +196,12 @@ describe('multi-account activity', () => {
     ).toBeInTheDocument()
   })
 
-  it('confirms and cancels a BOOKED trade, then shows cancelledAt', async () => {
-    const cancelled = {
+  it('confirms and audit-deletes a BOOKED trade', async () => {
+    const deleted = {
       ...trade,
       status: 'CANCELLED',
       cancelledAt: '2026-07-28T06:35:00Z',
+      cancellationReason: 'DELETED',
     }
     const fetchMock = vi
       .fn()
@@ -192,34 +209,38 @@ describe('multi-account activity', () => {
       .mockResolvedValueOnce(
         response({ ...emptyPage, items: [trade], totalElements: 1, totalPages: 1 }),
       )
-      .mockResolvedValueOnce(response(cancelled))
+      .mockResolvedValueOnce(response(deleted))
       .mockResolvedValueOnce(response([primary, retirement]))
       .mockResolvedValueOnce(
-        response({ ...emptyPage, items: [cancelled], totalElements: 1, totalPages: 1 }),
+        response({ ...emptyPage, items: [deleted], totalElements: 1, totalPages: 1 }),
       )
     const confirm = vi.fn(() => true)
     vi.stubGlobal('fetch', fetchMock)
     vi.stubGlobal('confirm', confirm)
 
     render(<TradeBooking />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
 
-    expect(confirm).toHaveBeenCalledWith('Cancel this trade?')
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining(
+      'retained for audit',
+    ))
     expect(
-      await screen.findByText('Trade cancelled successfully.'),
+      await screen.findByText(
+        'Activity deleted with its audit record preserved.',
+      ),
     ).toBeInTheDocument()
     await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('button', { name: 'Delete' }))
         .not.toBeInTheDocument(),
     )
-    expect(screen.getByText('CANCELLED')).toBeInTheDocument()
+    expect(screen.getByText('DELETED')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
-      `/api/trades/${trade.id}/cancel`,
-      expect.objectContaining({ method: 'POST' }),
+      `/api/trades/${trade.id}`,
+      expect.objectContaining({ method: 'DELETE' }),
     )
   })
 
-  it('shows a clear 409 position conflict from cancellation', async () => {
+  it('shows a clear 409 position conflict from deletion', async () => {
     vi.stubGlobal(
       'fetch',
       vi
@@ -245,19 +266,72 @@ describe('multi-account activity', () => {
     vi.stubGlobal('confirm', vi.fn(() => true))
 
     render(<TradeBooking />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
     expect(
       await screen.findByText(
         'insufficient position; available at execution time: 0',
       ),
     ).toBeInTheDocument()
   })
+
+  it('edits by creating an audit-linked replacement', async () => {
+    const replacement = {
+      ...trade,
+      id: '7c014ad6-b2b8-43d5-a761-3f32513f42f9',
+      quantity: 12,
+      supersedesTradeId: trade.id,
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response([primary, retirement]))
+      .mockResolvedValueOnce(
+        response({ ...emptyPage, items: [trade], totalElements: 1, totalPages: 1 }),
+      )
+      .mockResolvedValueOnce(response(aaplSearch))
+      .mockResolvedValueOnce(response({
+        cancelledTrade: {
+          ...trade,
+          status: 'CANCELLED',
+          cancelledAt: '2026-07-28T06:35:00Z',
+          cancellationReason: 'AMENDED',
+        },
+        replacementTrade: replacement,
+      }))
+      .mockResolvedValueOnce(response([primary, retirement]))
+      .mockResolvedValueOnce(response({
+        ...emptyPage,
+        items: [replacement],
+        totalElements: 1,
+        totalPages: 1,
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<TradeBooking />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    expect(
+      screen.getByText(/preserves the original as CANCELLED/i),
+    ).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('option', { name: /AAPL/ }))
+    fireEvent.change(screen.getByLabelText('Quantity'), {
+      target: { value: '12' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save amendment' }))
+
+    expect(
+      await screen.findByText(/replacement booked/i),
+    ).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/trades/${trade.id}/amend`,
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
 })
 
-function fillTrade() {
-  fireEvent.change(screen.getByLabelText('Ticker'), {
+async function fillTrade() {
+  fireEvent.change(screen.getByLabelText('Ticker or company'), {
     target: { value: 'aapl' },
   })
+  fireEvent.click(await screen.findByRole('option', { name: /AAPL/ }))
   fireEvent.change(screen.getByLabelText('Quantity'), {
     target: { value: '10.5' },
   })

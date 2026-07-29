@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -73,6 +74,79 @@ public class TradeController {
         return TradeResponse.from(tradeApplicationService.cancel(id));
     }
 
+    @DeleteMapping("/{id}")
+    @Operation(
+            summary = "Delete a trade without destroying its audit record",
+            description = """
+                    Marks a BOOKED trade as CANCELLED with reason DELETED.
+                    The row remains queryable and is excluded from positions.
+                    """)
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Audit-preserved deletion"),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Trade does not exist",
+                content = @Content(
+                        mediaType = "application/problem+json",
+                        schema = @Schema(
+                                implementation =
+                                        ProblemDetailsDocumentation.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Deletion conflicts with the ledger",
+                content = @Content(
+                        mediaType = "application/problem+json",
+                        schema = @Schema(
+                                implementation =
+                                        ProblemDetailsDocumentation.class)))
+    })
+    public TradeResponse delete(@PathVariable UUID id) {
+        return TradeResponse.from(tradeApplicationService.delete(id));
+    }
+
+    @PostMapping("/{id}/amend")
+    @Operation(
+            summary = "Amend a booked trade",
+            description = """
+                    Cancels the original trade with reason AMENDED and creates
+                    an audit-linked replacement in one transaction.
+                    """)
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Amendment completed"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Invalid amendment",
+                content = @Content(
+                        mediaType = "application/problem+json",
+                        schema = @Schema(
+                                implementation =
+                                        ProblemDetailsDocumentation.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Trade or account does not exist",
+                content = @Content(
+                        mediaType = "application/problem+json",
+                        schema = @Schema(
+                                implementation =
+                                        ProblemDetailsDocumentation.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Amendment conflicts with account or position",
+                content = @Content(
+                        mediaType = "application/problem+json",
+                        schema = @Schema(
+                                implementation =
+                                        ProblemDetailsDocumentation.class)))
+    })
+    public AmendTradeResponse amend(
+            @PathVariable UUID id,
+            @RequestBody CreateTradeRequest request) {
+        return AmendTradeResponse.from(
+                tradeApplicationService.amend(
+                        id,
+                        command(request)));
+    }
+
     @PostMapping
     @Operation(
             summary = "Book a BUY or SELL",
@@ -109,13 +183,7 @@ public class TradeController {
     })
     public ResponseEntity<TradeResponse> create(
             @RequestBody CreateTradeRequest request) {
-        TradeView trade = tradeApplicationService.book(new BookTradeCommand(
-                request.accountId(),
-                request.ticker(),
-                request.side(),
-                request.quantity(),
-                request.tradePrice(),
-                request.executedAt()));
+        TradeView trade = tradeApplicationService.book(command(request));
         TradeResponse response = TradeResponse.from(trade);
         return ResponseEntity
                 .created(URI.create("/api/trades/" + response.id()))
@@ -149,5 +217,15 @@ public class TradeController {
             @RequestParam(defaultValue = "10") int size) {
         return TradePageResponse.from(
                 tradeApplicationService.list(accountId, page, size));
+    }
+
+    private BookTradeCommand command(CreateTradeRequest request) {
+        return new BookTradeCommand(
+                request.accountId(),
+                request.ticker(),
+                request.side(),
+                request.quantity(),
+                request.tradePrice(),
+                request.executedAt());
     }
 }

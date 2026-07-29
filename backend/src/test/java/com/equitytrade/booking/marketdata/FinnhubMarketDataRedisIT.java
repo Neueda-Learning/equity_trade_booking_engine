@@ -258,6 +258,7 @@ class FinnhubMarketDataRedisIT {
                         0);
                 FinnhubStub stub = new FinnhubStub(server);
                 server.createContext("/quote", stub::respond);
+                server.createContext("/search", stub::search);
                 server.setExecutor(Executors.newCachedThreadPool(
                         runnable -> {
                             Thread thread = new Thread(
@@ -325,6 +326,33 @@ class FinnhubMarketDataRedisIT {
                     "Content-Type",
                     "application/json");
             exchange.sendResponseHeaders(status, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        }
+
+        private void search(HttpExchange exchange) throws IOException {
+            String token = exchange.getRequestHeaders()
+                    .getFirst("X-Finnhub-Token");
+            String query = exchange.getRequestURI().getRawQuery();
+            String symbol = query != null && query.contains("q=AAPL")
+                    ? "AAPL"
+                    : "";
+            int responseStatus = DUMMY_TOKEN.equals(token) ? 200 : 401;
+            String responseBody = symbol.isEmpty()
+                    ? "{\"count\":0,\"result\":[]}"
+                    : """
+                            {"count":1,"result":[{
+                              "description":"Apple Inc",
+                              "displaySymbol":"AAPL",
+                              "symbol":"AAPL",
+                              "type":"Common Stock"
+                            }]}
+                            """;
+            byte[] bytes = responseBody.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set(
+                    "Content-Type",
+                    "application/json");
+            exchange.sendResponseHeaders(responseStatus, bytes.length);
             exchange.getResponseBody().write(bytes);
             exchange.close();
         }

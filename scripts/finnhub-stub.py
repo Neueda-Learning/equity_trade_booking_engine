@@ -17,11 +17,48 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/health":
             self.send_json(200, {"status": "UP", "mode": MODE})
             return
-        if parsed.path != "/quote":
+        if parsed.path not in {"/quote", "/search"}:
             self.send_json(404, {"error": "not found"})
             return
         if self.headers.get("X-Finnhub-Token") != TOKEN:
             self.send_json(401, {"error": "invalid dummy token"})
+            return
+        if parsed.path == "/search":
+            query = parse_qs(parsed.query).get("q", [""])[0].upper()
+            if not query:
+                self.send_json(400, {"error": "q is required"})
+                return
+            if MODE == "timeout":
+                time.sleep(5)
+                return
+            if MODE == "server_error":
+                self.send_json(500, {"error": "stub server outage"})
+                return
+            if MODE == "rate_limit":
+                self.send_json(429, {"error": "stub rate limit"})
+                return
+            known = {
+                "APPLE": ("AAPL", "Apple Inc"),
+                "MICROSOFT": ("MSFT", "Microsoft Corp"),
+            }
+            symbol, description = known.get(
+                query,
+                (query, f"{query} CI TEST SECURITY"),
+            )
+            self.send_json(
+                200,
+                {
+                    "count": 1,
+                    "result": [
+                        {
+                            "description": description,
+                            "displaySymbol": symbol,
+                            "symbol": symbol,
+                            "type": "Common Stock",
+                        }
+                    ],
+                },
+            )
             return
         symbol = parse_qs(parsed.query).get("symbol", [""])[0]
         if not symbol:

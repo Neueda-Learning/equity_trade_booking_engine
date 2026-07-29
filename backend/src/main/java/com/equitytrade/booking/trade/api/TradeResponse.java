@@ -21,7 +21,13 @@ public record TradeResponse(
         String status,
         Instant createdAt,
         @Schema(nullable = true)
-        Instant cancelledAt) {
+        Instant cancelledAt,
+        @Schema(
+                nullable = true,
+                allowableValues = {"CANCELLED", "DELETED", "AMENDED"})
+        String cancellationReason,
+        @Schema(nullable = true)
+        UUID supersedesTradeId) {
 
     static TradeResponse from(TradeView trade) {
         return new TradeResponse(
@@ -34,6 +40,8 @@ public record TradeResponse(
                 trade.executedAt(),
                 trade.status(),
                 trade.createdAt(),
-                trade.cancelledAt());
+                trade.cancelledAt(),
+                trade.cancellationReason(),
+                trade.supersedesTradeId());
     }
 }
