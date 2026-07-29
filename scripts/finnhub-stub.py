@@ -44,7 +44,7 @@ class Handler(BaseHTTPRequestHandler):
                 "t": int(time.time()),
             },
         )
-
+# 处理来自客户端的 POST 请求，并根据请求的 mode 返回相应状态
     def do_POST(self):
         global MODE
         parsed = urlparse(self.path)
@@ -57,7 +57,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         MODE = requested
         self.send_json(200, {"mode": MODE})
-
+# 将字典格式的数据转换为 JSON 字符串并发送给客户端
     def send_json(self, status, payload):
         body = json.dumps(payload).encode("utf-8")
         try:
