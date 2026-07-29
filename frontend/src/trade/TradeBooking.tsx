@@ -22,6 +22,7 @@ import {
 } from '../api'
 import { formatDateTime, formatDecimal, formatMoney } from '../format'
 import { localizeApiErrors, localizedStatus, useI18n } from '../i18n'
+import TradeCsvImport from './TradeCsvImport'
 import './TradeBooking.css'
 
 const PAGE_SIZE = 20
@@ -419,6 +420,12 @@ function TradeBooking() {
               )}
             </div>
           </form>
+        )}
+        {activeAccounts.length > 0 && !editingTrade && (
+          <TradeCsvImport
+            accounts={activeAccounts}
+            onImported={refreshLedger}
+          />
         )}
         {message && (
           <p className="form-message form-message--success">{message}</p>

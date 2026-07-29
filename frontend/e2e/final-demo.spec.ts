@@ -190,12 +190,23 @@ async function bookTrade(
   }).click()
   await expect(page.getByText(new RegExp(`^Verified: ${ticker}`)))
     .toBeVisible()
-  const [tickerHeight, quantityHeight] = await Promise.all([
-    tickerSearch.evaluate((element) => element.getBoundingClientRect().height),
-    page.getByLabel('Quantity').evaluate(
-      (element) => element.getBoundingClientRect().height,
-    ),
-  ])
+  const [accountHeight, sideHeight, tickerHeight, quantityHeight] =
+    await Promise.all([
+      accountSelector(page).evaluate(
+        (element) => element.getBoundingClientRect().height,
+      ),
+      page.getByRole('combobox', { name: 'Side', exact: true }).evaluate(
+        (element) => element.getBoundingClientRect().height,
+      ),
+      tickerSearch.evaluate(
+        (element) => element.getBoundingClientRect().height,
+      ),
+      page.getByLabel('Quantity').evaluate(
+        (element) => element.getBoundingClientRect().height,
+      ),
+    ])
+  expect(Math.abs(accountHeight - tickerHeight)).toBeLessThanOrEqual(1)
+  expect(Math.abs(sideHeight - quantityHeight)).toBeLessThanOrEqual(1)
   expect(Math.abs(tickerHeight - quantityHeight)).toBeLessThanOrEqual(1)
   await page.getByLabel('Quantity').fill(quantity)
   await page.getByLabel('Trade price (USD)').fill(price)
