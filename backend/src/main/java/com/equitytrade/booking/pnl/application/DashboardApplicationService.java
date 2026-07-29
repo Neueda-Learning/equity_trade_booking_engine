@@ -38,7 +38,7 @@ public class DashboardApplicationService {
             ValuationSnapshotRepository snapshotRepository,
             HistoricalValuationService historicalValuationService,
             Clock clock,
-            @Value("${dashboard.history.source:hybrid}")
+            @Value("${dashboard.history.source:local}")
             String historySource) {
         this.pnlService = pnlService;
         this.contextSource = contextSource;

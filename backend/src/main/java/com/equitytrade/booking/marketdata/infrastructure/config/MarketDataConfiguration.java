@@ -10,6 +10,7 @@ import com.equitytrade.booking.marketdata.domain.HistoricalMarketDataProvider;
 import com.equitytrade.booking.marketdata.domain.MarketDataCache;
 import com.equitytrade.booking.marketdata.domain.MarketDataProvider;
 import com.equitytrade.booking.marketdata.domain.MarketDataProviderState;
+import com.equitytrade.booking.marketdata.domain.MarketQuoteSnapshotRepository;
 import com.equitytrade.booking.marketdata.domain.PositionTickerSource;
 import com.equitytrade.booking.marketdata.infrastructure.provider.DeterministicMockMarketDataProvider;
 import com.equitytrade.booking.marketdata.infrastructure.provider.DeterministicMockInstrumentSearchProvider;
@@ -145,7 +146,8 @@ public class MarketDataConfiguration {
             PositionTickerSource positionTickerSource,
             Clock clock,
             MarketDataProperties properties,
-            MarketDataProviderState providerState) {
+            MarketDataProviderState providerState,
+            MarketQuoteSnapshotRepository snapshotRepository) {
         if (properties.getFreshTtl().isNegative()
                 || properties.getFreshTtl().isZero()
                 || properties.getRetentionTtl()
@@ -159,7 +161,8 @@ public class MarketDataConfiguration {
                 positionTickerSource,
                 clock,
                 properties.getFreshTtl(),
-                providerState);
+                providerState,
+                snapshotRepository);
     }
 
     @Bean

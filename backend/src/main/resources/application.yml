@@ -48,7 +48,7 @@ market-data:
 
 dashboard:
   history:
-    source: ${DASHBOARD_HISTORY_SOURCE:hybrid}
+    source: ${DASHBOARD_HISTORY_SOURCE:local}
   snapshots:
     scheduling-enabled: ${DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED:true}
     interval: ${DASHBOARD_SNAPSHOT_INTERVAL:1m}
