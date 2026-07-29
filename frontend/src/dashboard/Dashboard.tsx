@@ -350,6 +350,13 @@ function HistoryPanel({
       )}
       {!loading
         && !error
+        && history?.fallback && (
+          <p className="history-warning">
+            {t('dashboard.historyFallback')}
+          </p>
+        )}
+      {!loading
+        && !error
         && history?.items.some((item) => !item.complete) && (
           <p className="history-warning">
             {t('dashboard.historyIncomplete')}

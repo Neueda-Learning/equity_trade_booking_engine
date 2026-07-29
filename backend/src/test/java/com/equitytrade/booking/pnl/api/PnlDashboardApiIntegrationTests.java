@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
-@SpringBootTest
+@SpringBootTest(properties = "dashboard.history.source=local")
 @Transactional
 class PnlDashboardApiIntegrationTests {
 

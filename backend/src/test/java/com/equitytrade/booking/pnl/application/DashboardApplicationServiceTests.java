@@ -31,6 +31,8 @@ class DashboardApplicationServiceTests {
                 mock(DashboardContextSource.class);
         ValuationSnapshotRepository snapshotRepository =
                 mock(ValuationSnapshotRepository.class);
+        HistoricalValuationService historicalValuationService =
+                mock(HistoricalValuationService.class);
         UUID accountId = UUID.randomUUID();
         PnlResult result = emptyResult();
 
@@ -44,9 +46,11 @@ class DashboardApplicationServiceTests {
                         pnlService,
                         contextSource,
                         snapshotRepository,
+                        historicalValuationService,
                         Clock.fixed(
                                 Instant.parse("2026-07-29T12:00:00Z"),
-                                ZoneOffset.UTC));
+                                ZoneOffset.UTC),
+                        "local");
 
         service.captureScheduled();
 

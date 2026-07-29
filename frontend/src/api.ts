@@ -192,6 +192,9 @@ export interface ValuationSnapshot {
 
 export interface ValuationHistory {
   range: HistoryRange
+  source: 'LOCAL' | 'PROVIDER' | 'HYBRID'
+  fallback: boolean
+  failureCategory: string | null
   items: ValuationSnapshot[]
 }
 

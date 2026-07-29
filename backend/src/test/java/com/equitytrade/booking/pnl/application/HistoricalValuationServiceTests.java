@@ -2,6 +2,8 @@ package com.equitytrade.booking.pnl.application;
 
 import com.equitytrade.booking.marketdata.domain.DailyMarketPrice;
 import com.equitytrade.booking.marketdata.domain.HistoricalMarketDataProvider;
+import com.equitytrade.booking.marketdata.domain.MarketDataFailureCategory;
+import com.equitytrade.booking.marketdata.domain.MarketDataProviderException;
 import com.equitytrade.booking.pnl.domain.HistoricalTrade;
 import com.equitytrade.booking.pnl.domain.HistoricalTradeSide;
 import com.equitytrade.booking.pnl.domain.HistoricalTradeSource;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class HistoricalValuationServiceTests {
 
@@ -115,6 +118,33 @@ class HistoricalValuationServiceTests {
         assertThat(oneDay.items()).singleElement()
                 .extracting(ValuationHistoryPointView::valuationDate)
                 .isEqualTo(LocalDate.parse("2026-07-29"));
+    }
+
+    @Test
+    void doesNotTurnAnUnauthorizedCandleResponseIntoZeroHistory() {
+        HistoricalTrade trade = new HistoricalTrade(
+                UUID.randomUUID(),
+                ACCOUNT_ID,
+                "AAPL",
+                HistoricalTradeSide.BUY,
+                BigDecimal.ONE,
+                new BigDecimal("100"),
+                Instant.parse("2026-07-24T06:00:00Z"),
+                Instant.parse("2026-07-29T06:00:00Z"));
+        HistoricalMarketDataProvider provider = (ticker, from, to) -> {
+            throw new MarketDataProviderException(
+                    MarketDataFailureCategory.AUTHENTICATION,
+                    "not authorized");
+        };
+
+        assertThatThrownBy(() -> service(
+                List.of(trade),
+                provider).history(ACCOUNT_ID, HistoryRange.SEVEN_DAYS))
+                .isInstanceOf(HistoricalMarketDataUnavailableException.class)
+                .extracting(exception ->
+                        ((HistoricalMarketDataUnavailableException) exception)
+                                .failureCategory())
+                .isEqualTo(MarketDataFailureCategory.AUTHENTICATION);
     }
 
     private BigDecimal valueOn(

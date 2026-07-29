@@ -78,6 +78,8 @@ const en = {
   'dashboard.unavailable': 'Dashboard data is unavailable.',
   'dashboard.refreshFailed': 'Dashboard refresh failed.',
   'dashboard.historyUnavailable': 'Valuation history is unavailable.',
+  'dashboard.historyFallback':
+    'Historical candles are unavailable; showing persisted local snapshots.',
   'dashboard.staleNotice':
     'Cached, stale quotes are being used. Values are not live.',
   'dashboard.lastUpdated': 'Last updated',
@@ -366,6 +368,8 @@ const zhCN: TranslationValues = {
   'dashboard.unavailable': '仪表盘数据不可用。',
   'dashboard.refreshFailed': '仪表盘刷新失败。',
   'dashboard.historyUnavailable': '估值历史不可用。',
+  'dashboard.historyFallback':
+    '历史 K 线不可用，当前显示已持久化的本地快照。',
   'dashboard.staleNotice': '正在使用已过期的缓存报价，数值并非实时。',
   'dashboard.lastUpdated': '最后更新',
   'dashboard.quoteStatusLabel': '报价状态',
@@ -631,6 +635,8 @@ const ptBR: TranslationValues = {
   'dashboard.unavailable': 'Os dados do painel estão indisponíveis.',
   'dashboard.refreshFailed': 'Falha ao atualizar o painel.',
   'dashboard.historyUnavailable': 'O histórico de avaliação está indisponível.',
+  'dashboard.historyFallback':
+    'Os candles históricos estão indisponíveis; exibindo snapshots locais persistidos.',
   'dashboard.staleNotice':
     'Cotações desatualizadas em cache estão em uso. Os valores não são ao vivo.',
   'dashboard.lastUpdated': 'Última atualização',

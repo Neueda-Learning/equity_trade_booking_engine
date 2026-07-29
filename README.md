@@ -188,10 +188,21 @@ falls back to Mock automatically. If the provider fails and a retained Redis
 quote exists, the response is `cached=true` and `stale=true`; otherwise the API
 returns safe Problem Details.
 
-The dashboard history uses locally persisted valuation snapshots instead of
-Finnhub `/stock/candle`. A failed current quote may reuse the retained Redis
-value as a `STALE` snapshot; a position with no available quote makes that
-snapshot incomplete.
+The dashboard history defaults to `DASHBOARD_HISTORY_SOURCE=hybrid`. It asks
+the configured historical provider for daily closes, persists the resulting
+daily portfolio valuations in MySQL, and combines them with locally captured
+minute snapshots. For `MARKET_DATA_PROVIDER=finnhub`, the historical provider
+uses Finnhub `/stock/candle` with `resolution=D`. Finnhub currently requires a
+Stock Candles entitlement for this endpoint; a key that can fetch current
+quotes may still receive HTTP 403 for candles. In hybrid mode, an unavailable
+historical provider falls back to already persisted local snapshots and the UI
+shows a warning instead of turning missing prices into `$0.00`.
+
+Use `DASHBOARD_HISTORY_SOURCE=local` to disable historical API calls, or
+`provider` to display only provider-backed daily history. Successfully
+backfilled daily valuations and minute snapshots are stored in the MySQL named
+volume, so `docker compose down` followed by `docker compose up` retains them.
+`docker compose down -v` deletes that volume and its history.
 
 To validate a real local key without printing it:
 
@@ -344,6 +355,7 @@ token, never a real Finnhub API key.
 | `DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED` | `true` |
 | `DASHBOARD_SNAPSHOT_INTERVAL` | `1m` |
 | `DASHBOARD_SNAPSHOT_INITIAL_DELAY` | `0s` |
+| `DASHBOARD_HISTORY_SOURCE` | `hybrid` (`local`, `provider`, or `hybrid`) |
 
 Copy `.env.example` to an ignored `.env` only for local overrides. Defaults are
 development examples and must not be reused as production credentials.

@@ -7,11 +7,14 @@ import com.equitytrade.booking.pnl.domain.PnlResult;
 import com.equitytrade.booking.pnl.domain.SnapshotScope;
 import com.equitytrade.booking.pnl.domain.ValuationSnapshot;
 import com.equitytrade.booking.pnl.domain.ValuationSnapshotRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
@@ -25,17 +28,24 @@ public class DashboardApplicationService {
     private final PnlApplicationService pnlService;
     private final DashboardContextSource contextSource;
     private final ValuationSnapshotRepository snapshotRepository;
+    private final HistoricalValuationService historicalValuationService;
     private final Clock clock;
+    private final DashboardHistorySource historySource;
 
     public DashboardApplicationService(
             PnlApplicationService pnlService,
             DashboardContextSource contextSource,
             ValuationSnapshotRepository snapshotRepository,
-            Clock clock) {
+            HistoricalValuationService historicalValuationService,
+            Clock clock,
+            @Value("${dashboard.history.source:hybrid}")
+            String historySource) {
         this.pnlService = pnlService;
         this.contextSource = contextSource;
         this.snapshotRepository = snapshotRepository;
+        this.historicalValuationService = historicalValuationService;
         this.clock = clock;
+        this.historySource = DashboardHistorySource.parse(historySource);
     }
 
     public DashboardView get(UUID accountId) {
@@ -85,7 +95,7 @@ public class DashboardApplicationService {
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ValuationHistoryView history(
             UUID accountId,
             String rawRange) {
@@ -100,12 +110,56 @@ public class DashboardApplicationService {
                     "range",
                     exception.getMessage());
         }
-        List<ValuationSnapshot> snapshots = snapshotRepository.find(
-                        accountId == null
-                                ? SnapshotScope.ALL
-                                : SnapshotScope.ACCOUNT,
-                        accountId,
-                        range.capturedFrom(now()).orElse(null));
+        Instant capturedFrom = capturedFrom(range);
+        List<ValuationSnapshot> snapshots = snapshots(
+                accountId,
+                capturedFrom);
+        if (historySource == DashboardHistorySource.LOCAL) {
+            return historyView(range, historySource, false, null, snapshots);
+        }
+
+        List<ValuationSnapshot> historical =
+                historicalSnapshots(snapshots);
+        try {
+            ValuationHistoryView fetched =
+                    historicalValuationService.history(accountId, range);
+            fetched.items().stream()
+                    .map(ValuationHistoryPointView::toSnapshot)
+                    .forEach(snapshotRepository::save);
+            List<ValuationSnapshot> persisted = snapshots(
+                    accountId,
+                    capturedFrom);
+            return historyView(
+                    range,
+                    historySource,
+                    false,
+                    null,
+                    historySource == DashboardHistorySource.PROVIDER
+                            ? historicalSnapshots(persisted)
+                            : persisted);
+        } catch (HistoricalMarketDataUnavailableException exception) {
+            List<ValuationSnapshot> fallback =
+                    historySource == DashboardHistorySource.PROVIDER
+                            ? historical
+                            : snapshots;
+            if (fallback.isEmpty()) {
+                throw exception;
+            }
+            return historyView(
+                    range,
+                    historySource,
+                    true,
+                    exception.failureCategory().name(),
+                    fallback);
+        }
+    }
+
+    private ValuationHistoryView historyView(
+            HistoryRange range,
+            DashboardHistorySource source,
+            boolean fallback,
+            String failureCategory,
+            List<ValuationSnapshot> snapshots) {
         List<ValuationHistoryPointView> items =
                 ValuationHistorySampler.evenly(
                                 snapshots,
@@ -113,7 +167,49 @@ public class DashboardApplicationService {
                 .stream()
                 .map(ValuationHistoryPointView::from)
                 .toList();
-        return new ValuationHistoryView(range.apiValue(), items);
+        return new ValuationHistoryView(
+                range.apiValue(),
+                source.name(),
+                fallback,
+                failureCategory,
+                items);
+    }
+
+    private List<ValuationSnapshot> snapshots(
+            UUID accountId,
+            Instant capturedFrom) {
+        return snapshotRepository.find(
+                accountId == null
+                        ? SnapshotScope.ALL
+                        : SnapshotScope.ACCOUNT,
+                accountId,
+                capturedFrom);
+    }
+
+    private List<ValuationSnapshot> historicalSnapshots(
+            List<ValuationSnapshot> snapshots) {
+        return snapshots.stream()
+                .filter(snapshot -> snapshot.id().equals(
+                        ValuationHistoryPointView.historicalId(
+                                snapshot.accountId(),
+                                LocalDate.ofInstant(
+                                        snapshot.capturedAt(),
+                                        ZoneOffset.UTC))))
+                .toList();
+    }
+
+    private Instant capturedFrom(HistoryRange range) {
+        LocalDate today = LocalDate.ofInstant(now(), ZoneOffset.UTC);
+        return switch (range) {
+            case ONE_DAY -> today.atStartOfDay(ZoneOffset.UTC).toInstant();
+            case SEVEN_DAYS -> today.minusDays(6)
+                    .atStartOfDay(ZoneOffset.UTC)
+                    .toInstant();
+            case THIRTY_DAYS -> today.minusDays(29)
+                    .atStartOfDay(ZoneOffset.UTC)
+                    .toInstant();
+            case ALL -> null;
+        };
     }
 
     private DashboardView dashboard(

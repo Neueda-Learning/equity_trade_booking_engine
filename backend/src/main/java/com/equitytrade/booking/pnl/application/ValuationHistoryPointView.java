@@ -50,9 +50,7 @@ public record ValuationHistoryPointView(
         String scope = accountId == null
                 ? SnapshotScope.ALL.name()
                 : SnapshotScope.ACCOUNT.name();
-        UUID id = UUID.nameUUIDFromBytes(
-                (scope + ":" + accountId + ":" + valuationDate)
-                        .getBytes(StandardCharsets.UTF_8));
+        UUID id = historicalId(accountId, valuationDate);
         return new ValuationHistoryPointView(
                 id,
                 scope,
@@ -67,5 +65,32 @@ public record ValuationHistoryPointView(
                 totals.mock(),
                 false,
                 valuationDate.atStartOfDay(ZoneOffset.UTC).toInstant());
+    }
+
+    ValuationSnapshot toSnapshot() {
+        return new ValuationSnapshot(
+                id,
+                SnapshotScope.valueOf(scopeType),
+                accountId,
+                totalCostBasis,
+                totalMarketValue,
+                unrealizedPnl,
+                positionCount,
+                pricedPositionCount,
+                complete,
+                mock,
+                stale,
+                capturedAt);
+    }
+
+    static UUID historicalId(
+            UUID accountId,
+            LocalDate valuationDate) {
+        String scope = accountId == null
+                ? SnapshotScope.ALL.name()
+                : SnapshotScope.ACCOUNT.name();
+        return UUID.nameUUIDFromBytes(
+                (scope + ":" + accountId + ":" + valuationDate)
+                        .getBytes(StandardCharsets.UTF_8));
     }
 }
