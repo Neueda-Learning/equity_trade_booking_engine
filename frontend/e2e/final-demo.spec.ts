@@ -177,7 +177,7 @@ test('warns before importing the same CSV table again', async ({
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page.getByText(`${accountName} created.`)).toBeVisible()
 
-  await navigate(page, 'Activity')
+  await navigateToTrade(page)
   await page.getByRole('button', { name: 'Open importer' }).click()
   await page.getByLabel('CSV file').setInputFiles({
     name: 'trades.csv',
@@ -223,6 +223,16 @@ async function navigate(
   await expect(
     page.getByRole('button', { name, exact: true }),
   ).toHaveAttribute('aria-current', 'page')
+}
+
+async function navigateToTrade(page: Page) {
+  const menu = page.getByRole('button', { name: 'Open navigation' })
+  if (await menu.isVisible()) await menu.click()
+  const tradeNavigation = page.getByRole('button', {
+    name: /^(Activity|Trade)$/,
+  })
+  await tradeNavigation.click()
+  await expect(tradeNavigation).toHaveAttribute('aria-current', 'page')
 }
 
 async function bookTrade(
