@@ -3,6 +3,7 @@ package com.equitytrade.booking.pnl.domain;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,5 +33,20 @@ class HistoryRangeTests {
         assertThatThrownBy(() -> HistoryRange.parse("1Y"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("must be one of 1D, 7D, 30D or ALL");
+    }
+
+    @Test
+    void calculatesInclusiveDailyRangeStarts() {
+        LocalDate today = LocalDate.parse("2026-07-29");
+        LocalDate earliest = LocalDate.parse("2026-07-15");
+
+        assertThat(HistoryRange.ONE_DAY.startDate(today, earliest))
+                .isEqualTo("2026-07-29");
+        assertThat(HistoryRange.SEVEN_DAYS.startDate(today, earliest))
+                .isEqualTo("2026-07-23");
+        assertThat(HistoryRange.THIRTY_DAYS.startDate(today, earliest))
+                .isEqualTo("2026-06-30");
+        assertThat(HistoryRange.ALL.startDate(today, earliest))
+                .isEqualTo(earliest);
     }
 }

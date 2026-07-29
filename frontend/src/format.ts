@@ -5,6 +5,13 @@ export function formatDateTime(value: string, locale?: string) {
   }).format(new Date(value))
 }
 
+export function formatDate(value: string, locale?: string) {
+  return new Intl.DateTimeFormat(activeLocale(locale), {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  }).format(new Date(`${value}T00:00:00Z`))
+}
+
 export function formatMoney(value: number, locale?: string) {
   return new Intl.NumberFormat(activeLocale(locale), {
     style: 'currency',

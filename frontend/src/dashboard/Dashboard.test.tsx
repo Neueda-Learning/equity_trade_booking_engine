@@ -59,7 +59,7 @@ describe('P&L Dashboard', () => {
       ),
     )
     expect(
-      await screen.findByText('No valuation snapshots yet. Refresh the dashboard to capture one.'),
+      await screen.findByText('No booked trades are available for valuation.'),
     ).toBeInTheDocument()
   })
 
@@ -243,6 +243,7 @@ describe('P&L Dashboard', () => {
               tradePrice: 125.5,
               status: 'CANCELLED',
               executedAt: '2026-07-28T08:30:00Z',
+              createdAt: '2026-07-28T08:35:00Z',
               cancelledAt: '2026-07-28T09:00:00Z',
               cancellationReason: 'DELETED',
             },
@@ -258,6 +259,7 @@ describe('P&L Dashboard', () => {
     expect(screen.getByText('SELL')).toBeInTheDocument()
     expect(screen.getByText('CANCELLED')).toBeInTheDocument()
     expect(screen.getByText('2 shares at $125.50')).toBeInTheDocument()
+    expect(screen.getByText(/Operation recorded/)).toBeInTheDocument()
     expect(screen.getByText(/DELETED/)).toBeInTheDocument()
     fireEvent.click(
       screen.getByRole('button', { name: 'View all activity' }),
@@ -337,6 +339,7 @@ function dashboard(overrides?: {
     tradePrice: number
     status: 'BOOKED' | 'CANCELLED'
     executedAt: string
+    createdAt: string
     cancelledAt: string | null
     cancellationReason: 'CANCELLED' | 'DELETED' | 'AMENDED' | null
   }[]
@@ -402,6 +405,7 @@ function snapshot(
     complete: true,
     mock: true,
     stale: false,
+    valuationDate: capturedAt.slice(0, 10),
     capturedAt,
   }
 }

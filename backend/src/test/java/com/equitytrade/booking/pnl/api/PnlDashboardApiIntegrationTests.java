@@ -147,7 +147,7 @@ class PnlDashboardApiIntegrationTests {
     }
 
     @Test
-    void refreshCreatesAllAndAccountSnapshotsAndReturnsSortedHistory()
+    void refreshCreatesSnapshotsAndHistoryReplaysDailyValuations()
             throws Exception {
         stubQuote("AAPL", "12", false, false);
         trade(PRIMARY_ACCOUNT_ID, "AAPL", "BUY", "10", "10", 10);
@@ -158,6 +158,8 @@ class PnlDashboardApiIntegrationTests {
                 .andExpect(jsonPath("$.totals.totalMarketValue").value(120))
                 .andExpect(jsonPath("$.recentActivity[0].ticker")
                         .value("AAPL"))
+                .andExpect(jsonPath("$.recentActivity[0].createdAt")
+                        .exists())
                 .andExpect(jsonPath("$.capturedAt").exists());
         mockMvc.perform(post("/api/dashboard/refresh"))
                 .andExpect(status().isOk());
@@ -184,19 +186,20 @@ class PnlDashboardApiIntegrationTests {
                         .param("range", "ALL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.range").value("ALL"))
-                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].valuationDate")
+                        .value(java.time.LocalDate.now(
+                                java.time.ZoneOffset.UTC).toString()))
                 .andReturn();
         JsonNode items = objectMapper.readTree(
                 history.getResponse().getContentAsString()).path("items");
-        assertThat(Instant.parse(items.get(0).path("capturedAt").asText()))
-                .isBeforeOrEqualTo(Instant.parse(
-                        items.get(1).path("capturedAt").asText()));
+        assertThat(items.get(0).path("complete").asBoolean()).isTrue();
 
         mockMvc.perform(get("/api/dashboard/history")
                         .param("accountId", PRIMARY_ACCOUNT_ID)
                         .param("range", "30D"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items.length()").value(30))
                 .andExpect(jsonPath("$.items[0].scopeType")
                         .value("ACCOUNT"));
     }

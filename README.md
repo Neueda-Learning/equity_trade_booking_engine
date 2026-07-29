@@ -16,14 +16,16 @@ labelled `MOCK`; Finnhub quotes and Redis fallback values are distinguished as
 
 - Multiple ACTIVE or INACTIVE securities accounts with no physical deletion
 - BUY and SELL booking with verified US stock, ADR, or ETF selection
-- Audit-preserved Activity amendments and deletion, plus cancellation
+- Audit-preserved Activity amendments and deletion, with separate execution
+  and operation timestamps
 - Idempotent cancellation and chronological no-short validation
 - Weighted-average Position quantity, average cost, and cost basis
 - Deterministic Mock quotes or explicitly configured Finnhub quotes
 - Redis quote caching with fresh and retained stale-fallback periods
 - Provider status and opt-in Demo outage controls
 - Backend-calculated unrealized P&L with partial quote availability
-- Dashboard KPIs, Position P&L, recent Activity, and valuation history
+- Dashboard KPIs, Position P&L, recent Activity, and daily valuation history
+  reconstructed from executed trades and historical closing prices
 - MySQL 8.4 Flyway migrations with Hibernate schema validation
 - RFC Problem Details errors, OpenAPI documentation, and Swagger UI
 - Unit, MySQL/Redis Testcontainers integration, frontend, Compose smoke, and
@@ -39,6 +41,8 @@ Account 1 ──── * Trade
   │               │
   │               ├── side: BUY | SELL
   │               ├── status: BOOKED | CANCELLED
+  │               ├── executedAt: actual market execution time
+  │               ├── createdAt: system operation/recording time
   │               ├── cancellationReason: CANCELLED | DELETED | AMENDED
   │               └── supersedesTradeId: replacement audit link
   │
@@ -53,10 +57,16 @@ Redis ──── market:quote:{TICKER} only
 MySQL ──── Accounts, Trades, and ValuationSnapshots (systems of record)
 ```
 
-Positions replay BOOKED trades by execution time, creation time, and UUID.
+Positions replay BOOKED trades by execution time, operation time, and UUID.
 SELL and cancellation are rejected if any point in the resulting timeline
 would become negative. Weighted average cost is used; FIFO/LIFO and short
 selling are not supported.
+
+Daily valuation history replays the current BOOKED ledger by `executedAt`.
+`1D`, `7D`, and `30D` return inclusive UTC calendar days; `ALL` begins on the
+earliest execution date. Trading-day closes value open positions, and weekends
+or market holidays carry forward the most recent available close. Deleted,
+cancelled, and superseded trades are excluded when the curve is recalculated.
 
 P&L is unrealized P&L only:
 
@@ -160,6 +170,11 @@ Timeouts, connection failures, and 5xx responses have at most one retry.
 falls back to Mock automatically. If the provider fails and a retained Redis
 quote exists, the response is `cached=true` and `stale=true`; otherwise the API
 returns safe Problem Details.
+
+Finnhub daily history uses `/stock/candle` with `resolution=D`. Finnhub may
+require a paid historical-data entitlement. If a historical close is
+unavailable, the affected daily valuation is marked incomplete and the UI
+shows a warning instead of presenting it as a complete portfolio value.
 
 To validate a real local key without printing it:
 
@@ -327,9 +342,10 @@ development examples and must not be reused as production credentials.
   physical trade deletion
 - Activity editing creates an audit-linked replacement instead of mutating the
   original trade
-- No WebSocket quotes or historical candle API
-- No fabricated valuation history
-- Finnhub quote integration only; Mock remains the default development provider
+- No WebSocket quotes
+- Finnhub historical candles depend on the configured account entitlement
+- Mock remains the default development provider and produces clearly labelled,
+  deterministic daily closes
 
 ## Future work
 
@@ -337,5 +353,5 @@ development examples and must not be reused as production credentials.
 - Cash ledger and multi-currency support
 - Realized P&L and tax-lot accounting
 - Additional real market-data providers
-- WebSocket streaming and historical candles
+- WebSocket streaming and additional historical-price providers
 - Deployment-specific secret management and production observability

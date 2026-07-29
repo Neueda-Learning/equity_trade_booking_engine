@@ -4,5 +4,5 @@ import java.util.List;
 
 public record ValuationHistoryView(
         String range,
-        List<ValuationSnapshotView> items) {
+        List<ValuationHistoryPointView> items) {
 }

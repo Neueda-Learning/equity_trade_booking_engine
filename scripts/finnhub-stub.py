@@ -17,7 +17,7 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/health":
             self.send_json(200, {"status": "UP", "mode": MODE})
             return
-        if parsed.path not in {"/quote", "/search"}:
+        if parsed.path not in {"/quote", "/search", "/stock/candle"}:
             self.send_json(404, {"error": "not found"})
             return
         if self.headers.get("X-Finnhub-Token") != TOKEN:
@@ -58,6 +58,34 @@ class Handler(BaseHTTPRequestHandler):
                         }
                     ],
                 },
+            )
+            return
+        if parsed.path == "/stock/candle":
+            query = parse_qs(parsed.query)
+            symbol = query.get("symbol", [""])[0]
+            resolution = query.get("resolution", [""])[0]
+            try:
+                start = int(query.get("from", [""])[0])
+                end = int(query.get("to", [""])[0])
+            except ValueError:
+                self.send_json(400, {"error": "invalid candle range"})
+                return
+            if not symbol or resolution != "D" or start > end:
+                self.send_json(400, {"error": "invalid candle request"})
+                return
+            timestamps = list(range(
+                start - (start % 86400),
+                end + 1,
+                86400,
+            ))
+            base = 100 + (sum(ord(char) for char in symbol) % 100)
+            closes = [
+                round(base + (timestamp // 86400 % 17) * 0.25, 6)
+                for timestamp in timestamps
+            ]
+            self.send_json(
+                200,
+                {"c": closes, "t": timestamps, "s": "ok"},
             )
             return
         symbol = parse_qs(parsed.query).get("symbol", [""])[0]

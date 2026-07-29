@@ -4,7 +4,6 @@ import com.equitytrade.booking.pnl.domain.DashboardAccount;
 import com.equitytrade.booking.pnl.domain.DashboardContextSource;
 import com.equitytrade.booking.pnl.domain.HistoryRange;
 import com.equitytrade.booking.pnl.domain.PnlResult;
-import com.equitytrade.booking.pnl.domain.SnapshotScope;
 import com.equitytrade.booking.pnl.domain.ValuationSnapshot;
 import com.equitytrade.booking.pnl.domain.ValuationSnapshotRepository;
 import org.springframework.stereotype.Service;
@@ -24,16 +23,19 @@ public class DashboardApplicationService {
     private final PnlApplicationService pnlService;
     private final DashboardContextSource contextSource;
     private final ValuationSnapshotRepository snapshotRepository;
+    private final HistoricalValuationService historicalValuationService;
     private final Clock clock;
 
     public DashboardApplicationService(
             PnlApplicationService pnlService,
             DashboardContextSource contextSource,
             ValuationSnapshotRepository snapshotRepository,
+            HistoricalValuationService historicalValuationService,
             Clock clock) {
         this.pnlService = pnlService;
         this.contextSource = contextSource;
         this.snapshotRepository = snapshotRepository;
+        this.historicalValuationService = historicalValuationService;
         this.clock = clock;
     }
 
@@ -99,16 +101,7 @@ public class DashboardApplicationService {
                     "range",
                     exception.getMessage());
         }
-        List<ValuationSnapshotView> items = snapshotRepository.find(
-                        accountId == null
-                                ? SnapshotScope.ALL
-                                : SnapshotScope.ACCOUNT,
-                        accountId,
-                        range.capturedFrom(now()).orElse(null))
-                .stream()
-                .map(ValuationSnapshotView::from)
-                .toList();
-        return new ValuationHistoryView(range.apiValue(), items);
+        return historicalValuationService.history(accountId, range);
     }
 
     private DashboardView dashboard(

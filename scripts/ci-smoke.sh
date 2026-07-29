@@ -522,8 +522,8 @@ curl --fail --silent --show-error \
   "$BACKEND_URL/api/dashboard/history?range=ALL" \
   >"$LOG_DIR/history-all.json"
 jq --exit-status '
-  (.items | length) >= 2 and
-  ([.items[].capturedAt] == ([.items[].capturedAt] | sort)) and
+  (.items | length) >= 1 and
+  ([.items[].valuationDate] == ([.items[].valuationDate] | sort)) and
   all(.items[]; .scopeType == "ALL" and .accountId == null)
 ' "$LOG_DIR/history-all.json" >/dev/null
 
@@ -531,8 +531,8 @@ curl --fail --silent --show-error \
   "$BACKEND_URL/api/dashboard/history?accountId=$ACCOUNT_ID&range=ALL" \
   >"$LOG_DIR/history-account.json"
 jq --exit-status --arg accountId "$ACCOUNT_ID" '
-  (.items | length) >= 2 and
-  ([.items[].capturedAt] == ([.items[].capturedAt] | sort)) and
+  (.items | length) >= 1 and
+  ([.items[].valuationDate] == ([.items[].valuationDate] | sort)) and
   all(.items[];
     .scopeType == "ACCOUNT" and .accountId == $accountId
   )
@@ -669,8 +669,8 @@ curl --fail --silent --show-error \
   "$BACKEND_URL/api/dashboard/history?range=ALL" \
   >"$LOG_DIR/history-after-restart.json"
 jq --exit-status '
-  (.items | length) >= 2 and
-  ([.items[].capturedAt] == ([.items[].capturedAt] | sort))
+  .range == "ALL" and
+  (.items | length) == 0
 ' "$LOG_DIR/history-after-restart.json" >/dev/null
 
 compose exec -T redis redis-cli FLUSHDB >/dev/null
@@ -679,7 +679,8 @@ curl --fail --silent --show-error \
   "$BACKEND_URL/api/dashboard/history?accountId=$ACCOUNT_ID&range=ALL" \
   >"$LOG_DIR/history-after-redis-flush.json"
 jq --exit-status --arg accountId "$ACCOUNT_ID" '
-  (.items | length) >= 2 and
+  .range == "ALL" and
+  (.items | length) == 0 and
   all(.items[]; .accountId == $accountId)
 ' "$LOG_DIR/history-after-redis-flush.json" >/dev/null
 
@@ -713,4 +714,4 @@ jq --exit-status --argjson expected "$VALID_TOTAL" \
   '.totalElements == $expected' \
   "$LOG_DIR/trades-after-invalid.json" >/dev/null
 
-echo "Compose smoke passed for instrument search, audit amendment/deletion, Finnhub stub resilience, Redis stale fallback, P&L, MySQL history, and trade lifecycle."
+echo "Compose smoke passed for instrument search, audit amendment/deletion, Finnhub stub resilience, Redis stale fallback, P&L, daily valuation history, and trade lifecycle."

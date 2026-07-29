@@ -16,6 +16,7 @@ public record RecentActivityView(
         BigDecimal tradePrice,
         String status,
         Instant executedAt,
+        Instant createdAt,
         Instant cancelledAt,
         String cancellationReason) {
 
@@ -30,6 +31,7 @@ public record RecentActivityView(
                 PnlDecimal.api(activity.tradePrice()),
                 activity.status(),
                 activity.executedAt(),
+                activity.createdAt(),
                 activity.cancelledAt(),
                 activity.cancellationReason());
     }
