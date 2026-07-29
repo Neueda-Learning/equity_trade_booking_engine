@@ -98,6 +98,9 @@ const en = {
   'dashboard.noSnapshots':
     'No valuation snapshots yet. Refresh the dashboard to capture one.',
   'dashboard.chartMarketValue': 'Market Value',
+  'dashboard.chartValueAxis': 'Value (USD)',
+  'dashboard.chartTimeAxis': 'Time',
+  'dashboard.chartPointAria': '{series}, {date}, {value}',
   'dashboard.chartAria': 'Valuation history chart with {count} {points}',
   'dashboard.point': 'point',
   'dashboard.points': 'points',
@@ -313,6 +316,9 @@ const zhCN: TranslationValues = {
   'dashboard.loadingHistory': '正在加载估值历史…',
   'dashboard.noSnapshots': '暂无估值快照，请刷新仪表盘以创建快照。',
   'dashboard.chartMarketValue': '市场价值',
+  'dashboard.chartValueAxis': '价值（美元）',
+  'dashboard.chartTimeAxis': '时间',
+  'dashboard.chartPointAria': '{series}，{date}，{value}',
   'dashboard.chartAria': '估值历史图表，共 {count} 个{points}',
   'dashboard.point': '数据点',
   'dashboard.points': '数据点',
@@ -517,6 +523,9 @@ const ptBR: TranslationValues = {
   'dashboard.noSnapshots':
     'Ainda não há instantâneos. Atualize o painel para capturar um.',
   'dashboard.chartMarketValue': 'Valor de mercado',
+  'dashboard.chartValueAxis': 'Valor (USD)',
+  'dashboard.chartTimeAxis': 'Tempo',
+  'dashboard.chartPointAria': '{series}, {date}, {value}',
   'dashboard.chartAria':
     'Gráfico do histórico de avaliação com {count} {points}',
   'dashboard.point': 'ponto',

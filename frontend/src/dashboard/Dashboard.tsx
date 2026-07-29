@@ -351,25 +351,29 @@ function HistoryPanel({
 
 function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
   const { locale, t } = useI18n()
-  const width = 800
-  const height = 260
-  const padding = 34
+  const [activePoint, setActivePoint] = useState<{
+    index: number
+    series: 'market' | 'pnl'
+  } | null>(null)
+  const width = 900
+  const height = 360
+  const plot = { top: 24, right: 28, bottom: 62, left: 104 }
   const values = items.flatMap((item) => [
     item.totalMarketValue,
     item.unrealizedPnl,
   ])
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const spread = max - min || 1
+  const scale = niceChartScale(values, 5)
+  const { domainMin, domainMax } = scale
+  const spread = domainMax - domainMin
+  const plotWidth = width - plot.left - plot.right
+  const plotHeight = height - plot.top - plot.bottom
   const point = (value: number, index: number) => {
     const x =
       items.length === 1
-        ? width / 2
-        : padding +
-          (index * (width - padding * 2)) / (items.length - 1)
+        ? plot.left + plotWidth / 2
+        : plot.left + (index * plotWidth) / (items.length - 1)
     const y =
-      height - padding -
-      ((value - min) / spread) * (height - padding * 2)
+      plot.top + ((domainMax - value) / spread) * plotHeight
     return { x, y }
   }
   const market = items.map((item, index) =>
@@ -380,6 +384,34 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
   )
   const points = (values: { x: number; y: number }[]) =>
     values.map(({ x, y }) => `${x},${y}`).join(' ')
+  const yTicks = scale.ticks
+    .toReversed()
+    .map((value) => ({ value, y: point(value, 0).y }))
+  const xTickIndexes = chartTickIndexes(items.length, 5)
+  const showTime = chartUsesTimeLabels(items)
+  const zeroY =
+    domainMin <= 0 && domainMax >= 0 ? point(0, 0).y : null
+  const selectedItem = activePoint ? items[activePoint.index] : null
+  const selectedPosition = activePoint
+    ? activePoint.series === 'market'
+      ? market[activePoint.index]
+      : pnl[activePoint.index]
+    : null
+  const tooltipPosition = selectedPosition
+    ? {
+        x: selectedPosition.x,
+        y: Math.min(Math.max(selectedPosition.y, 74), height - 74),
+      }
+    : null
+
+  function pointHandlers(index: number, series: 'market' | 'pnl') {
+    return {
+      onMouseEnter: () => setActivePoint({ index, series }),
+      onMouseLeave: () => setActivePoint(null),
+      onFocus: () => setActivePoint({ index, series }),
+      onBlur: () => setActivePoint(null),
+    }
+  }
 
   return (
     <div className="valuation-chart">
@@ -387,47 +419,237 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
         <span><i className="legend-market" />{t('dashboard.chartMarketValue')}</span>
         <span><i className="legend-pnl" />{t('common.unrealizedPnl')}</span>
       </div>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        role="img"
-        aria-label={t('dashboard.chartAria', {
-          count: items.length,
-          points:
-            items.length === 1 ? t('dashboard.point') : t('dashboard.points'),
-        })}
-      >
-        <line
-          x1={padding}
-          y1={height - padding}
-          x2={width - padding}
-          y2={height - padding}
-          className="chart-axis"
-        />
-        <polyline points={points(market)} className="chart-market" />
-        <polyline points={points(pnl)} className="chart-pnl" />
-        {items.map((item, index) => (
-          <g key={item.id}>
-            <circle
-              cx={market[index].x}
-              cy={market[index].y}
-              r="6"
-              className="chart-market-point"
+      <div className="valuation-chart-scroll">
+        <div className="valuation-chart-canvas">
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            role="img"
+            aria-label={t('dashboard.chartAria', {
+              count: items.length,
+              points:
+                items.length === 1 ? t('dashboard.point') : t('dashboard.points'),
+            })}
+          >
+            {yTicks.map((tick) => (
+              <g key={tick.value}>
+                <line
+                  x1={plot.left}
+                  y1={tick.y}
+                  x2={width - plot.right}
+                  y2={tick.y}
+                  className="chart-grid"
+                />
+                <text
+                  x={plot.left - 12}
+                  y={tick.y}
+                  className="chart-tick"
+                  dominantBaseline="middle"
+                  textAnchor="end"
+                >
+                  {formatAxisMoney(tick.value, locale)}
+                </text>
+              </g>
+            ))}
+            {xTickIndexes.map((index) => (
+              <g key={items[index].id}>
+                <line
+                  x1={market[index].x}
+                  y1={plot.top}
+                  x2={market[index].x}
+                  y2={height - plot.bottom}
+                  className="chart-grid chart-grid--vertical"
+                />
+                <text
+                  x={market[index].x}
+                  y={height - plot.bottom + 24}
+                  className="chart-tick"
+                  textAnchor="middle"
+                >
+                  {formatAxisDate(items[index].capturedAt, locale, showTime)}
+                </text>
+              </g>
+            ))}
+            {zeroY !== null && (
+              <line
+                x1={plot.left}
+                y1={zeroY}
+                x2={width - plot.right}
+                y2={zeroY}
+                className="chart-zero"
+              />
+            )}
+            <line
+              x1={plot.left}
+              y1={plot.top}
+              x2={plot.left}
+              y2={height - plot.bottom}
+              className="chart-axis"
+            />
+            <line
+              x1={plot.left}
+              y1={height - plot.bottom}
+              x2={width - plot.right}
+              y2={height - plot.bottom}
+              className="chart-axis"
+            />
+            <text
+              x={18}
+              y={plot.top + plotHeight / 2}
+              className="chart-axis-label"
+              textAnchor="middle"
+              transform={`rotate(-90 18 ${plot.top + plotHeight / 2})`}
             >
-              <title>{tooltip(item, locale, t)}</title>
-            </circle>
-            <circle
-              cx={pnl[index].x}
-              cy={pnl[index].y}
-              r="5"
-              className="chart-pnl-point"
+              {t('dashboard.chartValueAxis')}
+            </text>
+            <text
+              x={plot.left + plotWidth / 2}
+              y={height - 12}
+              className="chart-axis-label"
+              textAnchor="middle"
             >
-              <title>{tooltip(item, locale, t)}</title>
-            </circle>
-          </g>
-        ))}
-      </svg>
+              {t('dashboard.chartTimeAxis')}
+            </text>
+            <polyline points={points(market)} className="chart-market" />
+            <polyline points={points(pnl)} className="chart-pnl" />
+            {items.map((item, index) => (
+              <g key={item.id}>
+                <circle
+                  cx={market[index].x}
+                  cy={market[index].y}
+                  r="7"
+                  tabIndex={0}
+                  aria-label={t('dashboard.chartPointAria', {
+                    series: t('dashboard.chartMarketValue'),
+                    date: formatDateTime(item.capturedAt, locale),
+                    value: formatMoney(item.totalMarketValue, locale),
+                  })}
+                  className={`chart-market-point ${
+                    activePoint?.index === index
+                      && activePoint.series === 'market'
+                      ? 'is-active'
+                      : ''
+                  }`}
+                  {...pointHandlers(index, 'market')}
+                >
+                  <title>{tooltip(item, locale, t)}</title>
+                </circle>
+                <circle
+                  cx={pnl[index].x}
+                  cy={pnl[index].y}
+                  r="6"
+                  tabIndex={0}
+                  aria-label={t('dashboard.chartPointAria', {
+                    series: t('common.unrealizedPnl'),
+                    date: formatDateTime(item.capturedAt, locale),
+                    value: formatMoney(item.unrealizedPnl, locale),
+                  })}
+                  className={`chart-pnl-point ${
+                    activePoint?.index === index
+                      && activePoint.series === 'pnl'
+                      ? 'is-active'
+                      : ''
+                  }`}
+                  {...pointHandlers(index, 'pnl')}
+                >
+                  <title>{tooltip(item, locale, t)}</title>
+                </circle>
+              </g>
+            ))}
+          </svg>
+          {selectedItem && tooltipPosition && (
+            <div
+              className={`chart-tooltip ${
+                tooltipPosition.x > width * 0.58
+                  ? 'chart-tooltip--left'
+                  : 'chart-tooltip--right'
+              }`}
+              role="status"
+              style={{
+                left: `${(tooltipPosition.x / width) * 100}%`,
+                top: `${(tooltipPosition.y / height) * 100}%`,
+              }}
+            >
+              <strong>{formatDateTime(selectedItem.capturedAt, locale)}</strong>
+              <span>
+                <i className="legend-market" />
+                {t('dashboard.chartMarketValue')}
+                <b>{formatMoney(selectedItem.totalMarketValue, locale)}</b>
+              </span>
+              <span>
+                <i className="legend-pnl" />
+                {t('common.unrealizedPnl')}
+                <b>{formatMoney(selectedItem.unrealizedPnl, locale)}</b>
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
+}
+
+function chartTickIndexes(length: number, maxTicks: number) {
+  if (length <= maxTicks) return Array.from({ length }, (_, index) => index)
+  return Array.from(
+    new Set(
+      Array.from({ length: maxTicks }, (_, index) =>
+        Math.round((index * (length - 1)) / (maxTicks - 1)),
+      ),
+    ),
+  )
+}
+
+function niceChartScale(values: number[], targetTicks: number) {
+  const rawMin = Math.min(...values, 0)
+  const rawMax = Math.max(...values, 0)
+  const rawRange = rawMax - rawMin || Math.max(Math.abs(rawMax), 1)
+  const roughStep = rawRange / Math.max(targetTicks - 1, 1)
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep))
+  const normalized = roughStep / magnitude
+  const factor =
+    normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10
+  const step = factor * magnitude
+  let domainMin = Math.floor(rawMin / step) * step
+  let domainMax = Math.ceil(rawMax / step) * step
+  if (domainMin === domainMax) {
+    domainMin -= step
+    domainMax += step
+  }
+  const precision = Math.max(0, -Math.floor(Math.log10(step))) + 2
+  const ticks: number[] = []
+  for (
+    let value = domainMin;
+    value <= domainMax + step / 2;
+    value += step
+  ) {
+    ticks.push(Number(value.toFixed(precision)))
+  }
+  return { domainMin, domainMax, ticks }
+}
+
+function chartUsesTimeLabels(items: ValuationSnapshot[]) {
+  if (items.length < 2) return true
+  const first = new Date(items[0].capturedAt).getTime()
+  const last = new Date(items.at(-1)!.capturedAt).getTime()
+  return last - first <= 36 * 60 * 60 * 1000
+}
+
+function formatAxisDate(value: string, locale: string, showTime: boolean) {
+  return new Intl.DateTimeFormat(
+    locale,
+    showTime
+      ? { hour: '2-digit', minute: '2-digit' }
+      : { month: 'short', day: 'numeric' },
+  ).format(new Date(value))
+}
+
+function formatAxisMoney(value: number, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value)
 }
 
 function RecentActivity({

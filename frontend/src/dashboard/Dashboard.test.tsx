@@ -172,6 +172,19 @@ describe('P&L Dashboard', () => {
     expect(
       screen.getAllByText(/Market Value: 120.123456/).length,
     ).toBeGreaterThan(0)
+    expect(screen.getByText('Value (USD)')).toBeInTheDocument()
+    expect(screen.getByText('Time')).toBeInTheDocument()
+
+    const marketPoint = screen.getByLabelText(
+      /Market Value, .*, \$120\.123456/,
+    )
+    fireEvent.mouseEnter(marketPoint)
+    const tooltip = screen.getByRole('status')
+    expect(tooltip).toHaveTextContent('$120.123456')
+    expect(tooltip).toHaveTextContent('$20.123456')
+
+    fireEvent.mouseLeave(marketPoint)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('shows a history server error without hiding dashboard data', async () => {
