@@ -6,6 +6,8 @@ import com.equitytrade.booking.marketdata.domain.MarketDataProviderException;
 import com.equitytrade.booking.marketdata.domain.MarketDataFailureCategory;
 import com.equitytrade.booking.marketdata.domain.MarketDataProviderState;
 import com.equitytrade.booking.marketdata.domain.MarketQuote;
+import com.equitytrade.booking.marketdata.domain.MarketQuoteSnapshot;
+import com.equitytrade.booking.marketdata.domain.MarketQuoteSnapshotRepository;
 import com.equitytrade.booking.marketdata.domain.MarketTicker;
 import com.equitytrade.booking.marketdata.domain.PositionTickerSource;
 
@@ -24,6 +26,7 @@ public class MarketDataApplicationService {
     private final Clock clock;
     private final Duration freshTtl;
     private final MarketDataProviderState providerState;
+    private final MarketQuoteSnapshotRepository snapshotRepository;
 
     public MarketDataApplicationService(
             MarketDataProvider provider,
@@ -37,7 +40,8 @@ public class MarketDataApplicationService {
                 positionTickerSource,
                 clock,
                 freshTtl,
-                null);
+                null,
+                snapshot -> snapshot);
     }
 
     public MarketDataApplicationService(
@@ -47,12 +51,31 @@ public class MarketDataApplicationService {
             Clock clock,
             Duration freshTtl,
             MarketDataProviderState providerState) {
+        this(
+                provider,
+                cache,
+                positionTickerSource,
+                clock,
+                freshTtl,
+                providerState,
+                snapshot -> snapshot);
+    }
+
+    public MarketDataApplicationService(
+            MarketDataProvider provider,
+            MarketDataCache cache,
+            PositionTickerSource positionTickerSource,
+            Clock clock,
+            Duration freshTtl,
+            MarketDataProviderState providerState,
+            MarketQuoteSnapshotRepository snapshotRepository) {
         this.provider = provider;
         this.cache = cache;
         this.positionTickerSource = positionTickerSource;
         this.clock = clock;
         this.freshTtl = freshTtl;
         this.providerState = providerState;
+        this.snapshotRepository = snapshotRepository;
     }
 
     public MarketQuoteView quote(String rawTicker) {
@@ -84,6 +107,9 @@ public class MarketDataApplicationService {
         try {
             MarketQuote fetched = provider.fetch(ticker);
             cache.put(fetched);
+            snapshotRepository.save(MarketQuoteSnapshot.capture(
+                    fetched,
+                    clock.instant()));
             return MarketQuoteView.from(fetched, false, false);
         } catch (MarketDataProviderException exception) {
             return cachedQuote

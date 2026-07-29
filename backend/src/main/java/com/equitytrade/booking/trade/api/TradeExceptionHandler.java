@@ -8,6 +8,8 @@ import com.equitytrade.booking.marketdata.application.InstrumentSearchUnavailabl
 import com.equitytrade.booking.marketdata.application.MarketDataNotFoundException;
 import com.equitytrade.booking.marketdata.application.MarketDataUnavailableException;
 import com.equitytrade.booking.marketdata.application.MarketDataValidationException;
+import com.equitytrade.booking.marketdata.domain.MarketDataFailureCategory;
+import com.equitytrade.booking.pnl.application.HistoricalMarketDataUnavailableException;
 import com.equitytrade.booking.pnl.application.PnlValidationException;
 import com.equitytrade.booking.trade.application.TradeUseCaseValidationException;
 import com.equitytrade.booking.trade.application.TradeConflictException;
@@ -198,6 +200,33 @@ public class TradeExceptionHandler {
                 request);
     }
 
+    @ExceptionHandler(HistoricalMarketDataUnavailableException.class)
+    ResponseEntity<ProblemDetail> handleHistoricalMarketDataUnavailable(
+            HistoricalMarketDataUnavailableException exception,
+            HttpServletRequest request) {
+        String detail = switch (exception.failureCategory()) {
+            case AUTHENTICATION ->
+                    "Finnhub Stock Candles is not authorized for this API key.";
+            case RATE_LIMIT ->
+                    "The historical market data rate limit was reached.";
+            case NOT_FOUND ->
+                    "The provider returned no historical candles.";
+            default ->
+                    "Historical market data is currently unavailable.";
+        };
+        return problem(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                MARKET_DATA_UNAVAILABLE_PROBLEM_TYPE,
+                "Historical market data unavailable",
+                detail,
+                Map.of(
+                        "history",
+                        "historical candles are unavailable",
+                        "provider",
+                        unavailableReason(exception.failureCategory())),
+                request);
+    }
+
     @ExceptionHandler(InstrumentSearchUnavailableException.class)
     ResponseEntity<ProblemDetail> handleInstrumentSearchUnavailable(
             InstrumentSearchUnavailableException exception,
@@ -311,7 +340,12 @@ public class TradeExceptionHandler {
 
     private String unavailableReason(
             MarketDataUnavailableException exception) {
-        return switch (exception.failureCategory()) {
+        return unavailableReason(exception.failureCategory());
+    }
+
+    private String unavailableReason(
+            MarketDataFailureCategory category) {
+        return switch (category) {
             case TIMEOUT -> "provider timeout";
             case RATE_LIMIT -> "provider rate limit";
             case SERVER_ERROR -> "provider server error";

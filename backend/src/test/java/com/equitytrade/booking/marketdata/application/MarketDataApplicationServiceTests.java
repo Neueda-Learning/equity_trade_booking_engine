@@ -5,6 +5,7 @@ import com.equitytrade.booking.marketdata.domain.MarketDataFailureCategory;
 import com.equitytrade.booking.marketdata.domain.MarketDataProvider;
 import com.equitytrade.booking.marketdata.domain.MarketDataProviderException;
 import com.equitytrade.booking.marketdata.domain.MarketQuote;
+import com.equitytrade.booking.marketdata.domain.MarketQuoteSnapshot;
 import com.equitytrade.booking.marketdata.domain.PositionTickerSource;
 import org.junit.jupiter.api.Test;
 
@@ -13,6 +14,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -126,6 +128,35 @@ class MarketDataApplicationServiceTests {
 
         assertThat(result.cached()).isFalse();
         assertThat(provider.calls).hasValue(1);
+    }
+
+    @Test
+    void everySuccessfulProviderQuoteIsPersistedButCacheHitsAreNotDuplicated() {
+        List<MarketQuoteSnapshot> snapshots = new ArrayList<>();
+        MarketDataApplicationService persistentService =
+                new MarketDataApplicationService(
+                        provider,
+                        cache,
+                        tickers,
+                        Clock.fixed(NOW, ZoneOffset.UTC),
+                        Duration.ofSeconds(60),
+                        null,
+                        snapshot -> {
+                            snapshots.add(snapshot);
+                            return snapshot;
+                        });
+
+        persistentService.quote("AAPL");
+        persistentService.quote("AAPL");
+        persistentService.refresh("AAPL");
+
+        assertThat(snapshots).hasSize(2);
+        assertThat(snapshots)
+                .extracting(MarketQuoteSnapshot::ticker)
+                .containsOnly("AAPL");
+        assertThat(snapshots)
+                .extracting(MarketQuoteSnapshot::persistedAt)
+                .containsOnly(NOW);
     }
 
     private static MarketQuote quote(String ticker, Instant fetchedAt) {

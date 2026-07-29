@@ -350,6 +350,13 @@ function HistoryPanel({
       )}
       {!loading
         && !error
+        && history?.fallback && (
+          <p className="history-warning">
+            {t('dashboard.historyFallback')}
+          </p>
+        )}
+      {!loading
+        && !error
         && history?.items.some((item) => !item.complete) && (
           <p className="history-warning">
             {t('dashboard.historyIncomplete')}
@@ -581,6 +588,7 @@ function ValuationChart({
             <path
               key={`line-${series}-${items[0].id}-${items.at(-1)?.id}`}
               d={linePath}
+              pathLength={1}
               className="chart-line"
             />
             <line
@@ -618,7 +626,7 @@ function ValuationChart({
               >
                 <title>
                   {formatDateTime(item.capturedAt, locale)} · {seriesLabel}:{' '}
-                  {values[index]}
+                  {formatMoney(values[index], locale)}
                 </title>
               </circle>
             ))}
@@ -713,7 +721,7 @@ function AllocationPie({ positions }: { positions: PositionPnl[] }) {
               r={radius}
               className="allocation-track"
             />
-            {segments.map((segment) => (
+            {segments.map((segment, index) => (
               <circle
                 key={segment.ticker}
                 cx="110"
@@ -728,6 +736,7 @@ function AllocationPie({ positions }: { positions: PositionPnl[] }) {
                 strokeDashoffset={-segment.offset * circumference}
                 transform="rotate(-90 110 110)"
                 className="allocation-segment"
+                style={{ animationDelay: `${index * 70}ms` }}
                 tabIndex={0}
                 aria-label={`${segment.ticker}, ${formatMoney(
                   segment.value,
@@ -869,15 +878,16 @@ function formatAxisMoney(value: number, locale: string) {
     style: 'currency',
     currency: 'USD',
     notation: 'compact',
-    maximumFractionDigits: 1,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value)
 }
 
 function formatAllocationPercent(value: number, locale: string) {
   return new Intl.NumberFormat(locale, {
     style: 'percent',
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value)
 }
 

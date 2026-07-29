@@ -2,6 +2,7 @@ package com.equitytrade.booking.pnl.application;
 
 import com.equitytrade.booking.marketdata.domain.DailyMarketPrice;
 import com.equitytrade.booking.marketdata.domain.HistoricalMarketDataProvider;
+import com.equitytrade.booking.marketdata.domain.MarketDataFailureCategory;
 import com.equitytrade.booking.marketdata.domain.MarketDataProviderException;
 import com.equitytrade.booking.pnl.domain.HistoricalPositionCalculator;
 import com.equitytrade.booking.pnl.domain.HistoricalTrade;
@@ -17,6 +18,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -139,6 +141,8 @@ public class HistoricalValuationService {
             LocalDate to) {
         Map<String, NavigableMap<LocalDate, DailyMarketPrice>> result =
                 new LinkedHashMap<>();
+        List<MarketDataProviderException> failures =
+                new ArrayList<>();
         trades.stream()
                 .map(HistoricalTrade::ticker)
                 .distinct()
@@ -154,12 +158,31 @@ public class HistoricalValuationService {
                                 .forEach(price -> byDate.put(
                                         price.tradingDate(),
                                         price));
-                    } catch (MarketDataProviderException ignored) {
+                    } catch (MarketDataProviderException exception) {
                         // A missing ticker remains unpriced without hiding
                         // the rest of the portfolio history.
+                        failures.add(exception);
                     }
                     result.put(ticker, byDate);
                 });
+        boolean noPrices = result.values().stream()
+                .allMatch(Map::isEmpty);
+        if (noPrices && !failures.isEmpty()) {
+                    MarketDataProviderException failure = failures.stream()
+                    .filter(exception -> exception.category()
+                            == MarketDataFailureCategory.AUTHENTICATION)
+                    .findFirst()
+                    .orElse(failures.getFirst());
+            throw new HistoricalMarketDataUnavailableException(
+                    failure.category(),
+                    failure.getMessage(),
+                    failure);
+        }
+        if (noPrices && !result.isEmpty()) {
+            throw new HistoricalMarketDataUnavailableException(
+                    MarketDataFailureCategory.NOT_FOUND,
+                    "The provider returned no historical candles");
+        }
         return result;
     }
 }

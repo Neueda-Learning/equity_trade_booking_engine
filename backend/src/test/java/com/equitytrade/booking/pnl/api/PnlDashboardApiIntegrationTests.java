@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
-@SpringBootTest
+@SpringBootTest(properties = "dashboard.history.source=local")
 @Transactional
 class PnlDashboardApiIntegrationTests {
 
@@ -147,7 +147,7 @@ class PnlDashboardApiIntegrationTests {
     }
 
     @Test
-    void refreshCreatesSnapshotsAndHistoryReplaysDailyValuations()
+    void refreshCreatesSnapshotsAndHistoryReadsLocalValuations()
             throws Exception {
         stubQuote("AAPL", "12", false, false);
         trade(PRIMARY_ACCOUNT_ID, "AAPL", "BUY", "10", "10", 10);
@@ -186,20 +186,24 @@ class PnlDashboardApiIntegrationTests {
                         .param("range", "ALL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.range").value("ALL"))
-                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.items[0].valuationDate")
                         .value(java.time.LocalDate.now(
                                 java.time.ZoneOffset.UTC).toString()))
                 .andReturn();
         JsonNode items = objectMapper.readTree(
                 history.getResponse().getContentAsString()).path("items");
+        assertThat(items).hasSize(2);
         assertThat(items.get(0).path("complete").asBoolean()).isTrue();
+        assertThat(Instant.parse(items.get(0).path("capturedAt").asText()))
+                .isBeforeOrEqualTo(Instant.parse(
+                        items.get(1).path("capturedAt").asText()));
 
         mockMvc.perform(get("/api/dashboard/history")
                         .param("accountId", PRIMARY_ACCOUNT_ID)
                         .param("range", "30D"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(30))
+                .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.items[0].scopeType")
                         .value("ACCOUNT"));
     }

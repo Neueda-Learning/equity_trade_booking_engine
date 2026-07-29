@@ -47,10 +47,12 @@ market-data:
   demo-controls-enabled: ${MARKET_DATA_DEMO_CONTROLS_ENABLED:false}
 
 dashboard:
+  history:
+    source: ${DASHBOARD_HISTORY_SOURCE:local}
   snapshots:
     scheduling-enabled: ${DASHBOARD_SNAPSHOT_SCHEDULING_ENABLED:true}
-    interval: ${DASHBOARD_SNAPSHOT_INTERVAL:15m}
-    initial-delay: ${DASHBOARD_SNAPSHOT_INITIAL_DELAY:15m}
+    interval: ${DASHBOARD_SNAPSHOT_INTERVAL:1m}
+    initial-delay: ${DASHBOARD_SNAPSHOT_INITIAL_DELAY:0s}
 
 management:
   endpoints:

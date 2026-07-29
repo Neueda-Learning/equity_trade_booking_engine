@@ -91,6 +91,7 @@ class MarketDataRedisMySqlIT {
             connection.serverCommands().flushDb();
             return null;
         });
+        jdbcTemplate.update("DELETE FROM market_quote_snapshots");
         jdbcTemplate.update("DELETE FROM trades");
     }
 
@@ -120,6 +121,13 @@ class MarketDataRedisMySqlIT {
         assertThat(ttlSeconds).isGreaterThan(Duration.ofHours(23).toSeconds());
         assertThat(ttlSeconds)
                 .isLessThanOrEqualTo(Duration.ofHours(24).toSeconds());
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM market_quote_snapshots
+                        WHERE ticker = 'AAPL'
+                        """,
+                Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -158,6 +166,9 @@ class MarketDataRedisMySqlIT {
                 .isEqualByComparingTo("195.25");
         assertThat(redisTemplate.getExpire(aaplKey))
                 .isGreaterThan(Duration.ofHours(23).toSeconds());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM market_quote_snapshots",
+                Integer.class)).isEqualTo(3);
     }
 
     @Test

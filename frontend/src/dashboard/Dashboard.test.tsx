@@ -59,7 +59,9 @@ describe('P&L Dashboard', () => {
       ),
     )
     expect(
-      await screen.findByText('No booked trades are available for valuation.'),
+      await screen.findByText(
+        'No local valuation snapshots yet. The first capture runs automatically.',
+      ),
     ).toBeInTheDocument()
   })
 
@@ -170,22 +172,22 @@ describe('P&L Dashboard', () => {
       }),
     ).toBeInTheDocument()
     expect(
-      screen.getAllByText(/Market Value: 120.123456/).length,
+      screen.getAllByText(/Market Value: \$120\.12/).length,
     ).toBeGreaterThan(0)
-    expect(screen.getAllByText('$125.654321').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$125.65').length).toBeGreaterThan(0)
     const metricSelector = screen.getByLabelText('Chart metric')
     const pnlButton = metricSelector.querySelector(
       'button[aria-pressed="false"]',
     )
     expect(pnlButton).not.toBeNull()
     fireEvent.click(pnlButton!)
-    expect(screen.getAllByText('$25.654321').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$25.65').length).toBeGreaterThan(0)
 
     const pnlPoint = screen.getByLabelText(
-      /Unrealized P&L, .*, \$20\.123456/,
+      /Unrealized P&L, .*, \$20\.12/,
     )
     fireEvent.pointerEnter(pnlPoint)
-    expect(screen.getAllByText('$20.123456').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$20.12').length).toBeGreaterThan(0)
   })
 
   it('shows portfolio allocation beside the valuation curve', async () => {
@@ -213,10 +215,10 @@ describe('P&L Dashboard', () => {
       }),
     ).toBeInTheDocument()
     expect(
-      screen.getByLabelText('AAPL, $120.00, 60.0%'),
+      screen.getByLabelText('AAPL, $120.00, 60.00%'),
     ).toBeInTheDocument()
     expect(
-      screen.getByLabelText('MSFT, $80.00, 40.0%'),
+      screen.getByLabelText('MSFT, $80.00, 40.00%'),
     ).toBeInTheDocument()
   })
 

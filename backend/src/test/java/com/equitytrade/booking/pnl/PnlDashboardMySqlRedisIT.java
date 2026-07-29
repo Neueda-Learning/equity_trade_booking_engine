@@ -102,7 +102,7 @@ class PnlDashboardMySqlRedisIT {
 
     @Test
     @Order(1)
-    void v5CreatesSnapshotTableForeignKeyAndIndexInMySql84() {
+    void migrationsCreateValuationAndQuoteSnapshotTablesInMySql84() {
         assertThat(jdbcTemplate.queryForObject(
                 """
                         SELECT COUNT(*)
@@ -113,9 +113,24 @@ class PnlDashboardMySqlRedisIT {
         assertThat(jdbcTemplate.queryForObject(
                 """
                         SELECT COUNT(*)
+                        FROM flyway_schema_history
+                        WHERE version = '8' AND success = 1
+                        """,
+                Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
                         FROM information_schema.tables
                         WHERE table_schema = DATABASE()
                           AND table_name = 'valuation_snapshots'
+                        """,
+                Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.tables
+                        WHERE table_schema = DATABASE()
+                          AND table_name = 'market_quote_snapshots'
                         """,
                 Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
@@ -200,17 +215,24 @@ class PnlDashboardMySqlRedisIT {
                         """,
                 Integer.class,
                 PRIMARY_ACCOUNT_ID)).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM market_quote_snapshots
+                        WHERE ticker = 'AAPL'
+                        """,
+                Integer.class)).isEqualTo(3);
 
         mockMvc.perform(get("/api/dashboard/history")
                         .param("range", "ALL"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.items[0].valuationDate").exists());
         mockMvc.perform(get("/api/dashboard/history")
                         .param("accountId", PRIMARY_ACCOUNT_ID)
                         .param("range", "30D"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(30))
+                .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.items[0].scopeType")
                         .value("ACCOUNT"));
     }
@@ -222,7 +244,7 @@ class PnlDashboardMySqlRedisIT {
         mockMvc.perform(get("/api/dashboard/history")
                         .param("range", "ALL"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1));
+                .andExpect(jsonPath("$.items.length()").value(2));
 
         redisTemplate.execute((RedisCallback<Void>) connection -> {
             connection.serverCommands().flushDb();
@@ -233,7 +255,7 @@ class PnlDashboardMySqlRedisIT {
         mockMvc.perform(get("/api/dashboard/history")
                         .param("range", "ALL"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.items[0].complete").value(true));
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM valuation_snapshots",
