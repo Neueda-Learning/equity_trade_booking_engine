@@ -6,12 +6,15 @@ import com.equitytrade.booking.marketdata.application.MarketDataApplicationServi
 import com.equitytrade.booking.marketdata.application.MarketDataProviderStatusService;
 import com.equitytrade.booking.marketdata.domain.DemoMarketDataControl;
 import com.equitytrade.booking.marketdata.domain.InstrumentSearchProvider;
+import com.equitytrade.booking.marketdata.domain.HistoricalMarketDataProvider;
 import com.equitytrade.booking.marketdata.domain.MarketDataCache;
 import com.equitytrade.booking.marketdata.domain.MarketDataProvider;
 import com.equitytrade.booking.marketdata.domain.MarketDataProviderState;
 import com.equitytrade.booking.marketdata.domain.PositionTickerSource;
 import com.equitytrade.booking.marketdata.infrastructure.provider.DeterministicMockMarketDataProvider;
 import com.equitytrade.booking.marketdata.infrastructure.provider.DeterministicMockInstrumentSearchProvider;
+import com.equitytrade.booking.marketdata.infrastructure.provider.DeterministicMockHistoricalMarketDataProvider;
+import com.equitytrade.booking.marketdata.infrastructure.provider.FinnhubHistoricalMarketDataProvider;
 import com.equitytrade.booking.marketdata.infrastructure.provider.FinnhubInstrumentSearchProvider;
 import com.equitytrade.booking.marketdata.infrastructure.provider.FinnhubMarketDataProvider;
 import com.equitytrade.booking.marketdata.infrastructure.provider.MarketDataProviderRuntimeState;
@@ -94,6 +97,28 @@ public class MarketDataConfiguration {
         return switch (provider(properties)) {
             case "MOCK" -> new DeterministicMockInstrumentSearchProvider();
             case "FINNHUB" -> new FinnhubInstrumentSearchProvider(
+                    HttpClient.newBuilder()
+                            .connectTimeout(properties.getConnectTimeout())
+                            .build(),
+                    objectMapper,
+                    properties.getFinnhubBaseUrl(),
+                    properties.getFinnhubApiKey(),
+                    properties.getReadTimeout(),
+                    properties.getMaxAttempts());
+            default -> throw new IllegalStateException(
+                    "MARKET_DATA_PROVIDER must be mock or finnhub");
+        };
+    }
+
+    @Bean
+    HistoricalMarketDataProvider historicalMarketDataProvider(
+            ObjectMapper objectMapper,
+            MarketDataProperties properties) {
+        validate(properties);
+        return switch (provider(properties)) {
+            case "MOCK" ->
+                    new DeterministicMockHistoricalMarketDataProvider();
+            case "FINNHUB" -> new FinnhubHistoricalMarketDataProvider(
                     HttpClient.newBuilder()
                             .connectTimeout(properties.getConnectTimeout())
                             .build(),

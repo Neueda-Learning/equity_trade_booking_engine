@@ -59,8 +59,12 @@ public class DashboardController {
 
     @GetMapping("/history")
     @Operation(
-            summary = "Get valuation snapshot history",
-            description = "Returns MySQL snapshots ordered by capturedAt ascending.")
+            summary = "Get daily valuation history",
+            description = """
+                    Replays BOOKED trades by executedAt and values each UTC day
+                    with historical closing prices. Weekends and market
+                    holidays carry forward the most recent close.
+                    """)
     @ApiResponse(
             responseCode = "400",
             description = "Invalid accountId or range",

@@ -2,6 +2,7 @@ package com.equitytrade.booking.pnl.domain;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Optional;
 
 public enum HistoryRange {
@@ -26,6 +27,19 @@ public enum HistoryRange {
         return duration == null
                 ? Optional.empty()
                 : Optional.of(now.minus(duration));
+    }
+
+    public LocalDate startDate(
+            LocalDate today,
+            LocalDate earliestTradeDate) {
+        return switch (this) {
+            case ONE_DAY -> today;
+            case SEVEN_DAYS -> today.minusDays(6);
+            case THIRTY_DAYS -> today.minusDays(29);
+            case ALL -> earliestTradeDate.isAfter(today)
+                    ? today
+                    : earliestTradeDate;
+        };
     }
 
     public static HistoryRange parse(String value) {

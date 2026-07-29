@@ -171,6 +171,16 @@
   margin-top: 18px;
 }
 
+.history-warning {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #f3d38a;
+  border-radius: 10px;
+  color: #7c4a03;
+  background: #fff8e6;
+  font-size: 0.82rem;
+}
+
 .valuation-chart-scroll {
   max-width: 100%;
   overflow-x: auto;

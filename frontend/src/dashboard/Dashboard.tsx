@@ -12,6 +12,7 @@ import {
   type ValuationSnapshot,
 } from '../api'
 import {
+  formatDate,
   formatDateTime,
   formatDecimal,
   formatMoney,
@@ -342,6 +343,13 @@ function HistoryPanel({
           {t('dashboard.noSnapshots')}
         </p>
       )}
+      {!loading
+        && !error
+        && history?.items.some((item) => !item.complete) && (
+          <p className="history-warning">
+            {t('dashboard.historyIncomplete')}
+          </p>
+        )}
       {!loading && !error && history && history.items.length > 0 && (
         <ValuationChart items={history.items} />
       )}
@@ -388,7 +396,6 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
     .toReversed()
     .map((value) => ({ value, y: point(value, 0).y }))
   const xTickIndexes = chartTickIndexes(items.length, 5)
-  const showTime = chartUsesTimeLabels(items)
   const zeroY =
     domainMin <= 0 && domainMax >= 0 ? point(0, 0).y : null
   const selectedItem = activePoint ? items[activePoint.index] : null
@@ -465,7 +472,7 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
                   className="chart-tick"
                   textAnchor="middle"
                 >
-                  {formatAxisDate(items[index].capturedAt, locale, showTime)}
+                  {formatAxisDate(items[index].valuationDate, locale)}
                 </text>
               </g>
             ))}
@@ -520,7 +527,7 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
                   tabIndex={0}
                   aria-label={t('dashboard.chartPointAria', {
                     series: t('dashboard.chartMarketValue'),
-                    date: formatDateTime(item.capturedAt, locale),
+                    date: formatDate(item.valuationDate, locale),
                     value: formatMoney(item.totalMarketValue, locale),
                   })}
                   className={`chart-market-point ${
@@ -540,7 +547,7 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
                   tabIndex={0}
                   aria-label={t('dashboard.chartPointAria', {
                     series: t('common.unrealizedPnl'),
-                    date: formatDateTime(item.capturedAt, locale),
+                    date: formatDate(item.valuationDate, locale),
                     value: formatMoney(item.unrealizedPnl, locale),
                   })}
                   className={`chart-pnl-point ${
@@ -569,7 +576,7 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
                 top: `${(tooltipPosition.y / height) * 100}%`,
               }}
             >
-              <strong>{formatDateTime(selectedItem.capturedAt, locale)}</strong>
+              <strong>{formatDate(selectedItem.valuationDate, locale)}</strong>
               <span>
                 <i className="legend-market" />
                 {t('dashboard.chartMarketValue')}
@@ -627,20 +634,12 @@ function niceChartScale(values: number[], targetTicks: number) {
   return { domainMin, domainMax, ticks }
 }
 
-function chartUsesTimeLabels(items: ValuationSnapshot[]) {
-  if (items.length < 2) return true
-  const first = new Date(items[0].capturedAt).getTime()
-  const last = new Date(items.at(-1)!.capturedAt).getTime()
-  return last - first <= 36 * 60 * 60 * 1000
-}
-
-function formatAxisDate(value: string, locale: string, showTime: boolean) {
-  return new Intl.DateTimeFormat(
-    locale,
-    showTime
-      ? { hour: '2-digit', minute: '2-digit' }
-      : { month: 'short', day: 'numeric' },
-  ).format(new Date(value))
+function formatAxisDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${value}T00:00:00Z`))
 }
 
 function formatAxisMoney(value: number, locale: string) {
@@ -709,6 +708,11 @@ function RecentActivity({
                     date: formatDateTime(trade.executedAt, locale),
                   })}
                 </small>
+                <small>
+                  {t('dashboard.operated', {
+                    date: formatDateTime(trade.createdAt, locale),
+                  })}
+                </small>
                 {trade.cancelledAt && (
                   <small className="activity-cancelled">
                     {trade.cancellationReason
@@ -731,10 +735,8 @@ function tooltip(
   locale: string,
   t: ReturnType<typeof useI18n>['t'],
 ) {
-  const date = new Date(item.capturedAt)
   return [
-    `${t('dashboard.tooltipUtc')}: ${date.toISOString()}`,
-    `${t('dashboard.tooltipLocal')}: ${date.toLocaleString(locale)}`,
+    formatDate(item.valuationDate, locale),
     `${t('dashboard.chartMarketValue')}: ${item.totalMarketValue}`,
     `${t('common.unrealizedPnl')}: ${item.unrealizedPnl}`,
   ].join(' · ')

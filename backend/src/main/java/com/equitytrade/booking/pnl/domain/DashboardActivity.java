@@ -14,6 +14,7 @@ public record DashboardActivity(
         BigDecimal tradePrice,
         String status,
         Instant executedAt,
+        Instant createdAt,
         Instant cancelledAt,
         String cancellationReason) {
 }

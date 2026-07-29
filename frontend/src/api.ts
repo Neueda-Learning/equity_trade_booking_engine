@@ -151,6 +151,7 @@ export interface DashboardActivity {
   tradePrice: number
   status: 'BOOKED' | 'CANCELLED'
   executedAt: string
+  createdAt: string
   cancelledAt: string | null
   cancellationReason: 'CANCELLED' | 'DELETED' | 'AMENDED' | null
 }
@@ -177,6 +178,7 @@ export interface ValuationSnapshot {
   id: string
   scopeType: 'ALL' | 'ACCOUNT'
   accountId: string | null
+  valuationDate: string
   totalCostBasis: number
   totalMarketValue: number
   unrealizedPnl: number
