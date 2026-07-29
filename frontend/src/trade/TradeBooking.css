@@ -51,11 +51,13 @@
 .trade-form {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: 18px 14px;
 }
 
 .trade-form label {
   display: grid;
+  align-content: start;
   gap: 7px;
   color: #334155;
   font-size: 0.82rem;

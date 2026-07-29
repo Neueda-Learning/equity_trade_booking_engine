@@ -190,6 +190,13 @@ async function bookTrade(
   }).click()
   await expect(page.getByText(new RegExp(`^Verified: ${ticker}`)))
     .toBeVisible()
+  const [tickerHeight, quantityHeight] = await Promise.all([
+    tickerSearch.evaluate((element) => element.getBoundingClientRect().height),
+    page.getByLabel('Quantity').evaluate(
+      (element) => element.getBoundingClientRect().height,
+    ),
+  ])
+  expect(Math.abs(tickerHeight - quantityHeight)).toBeLessThanOrEqual(1)
   await page.getByLabel('Quantity').fill(quantity)
   await page.getByLabel('Trade price (USD)').fill(price)
   await page.getByRole('button', { name: `Book ${side} trade` }).click()
