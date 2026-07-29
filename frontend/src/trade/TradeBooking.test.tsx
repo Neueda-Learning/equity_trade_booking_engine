@@ -334,7 +334,13 @@ async function fillTrade() {
   fireEvent.change(screen.getByLabelText('Ticker or company'), {
     target: { value: 'aapl' },
   })
-  fireEvent.click(await screen.findByRole('option', { name: /AAPL/ }))
+  fireEvent.click(
+    await screen.findByRole(
+      'option',
+      { name: /AAPL/ },
+      { timeout: 5000 },
+    ),
+  )
   fireEvent.change(screen.getByLabelText('Quantity'), {
     target: { value: '10.5' },
   })

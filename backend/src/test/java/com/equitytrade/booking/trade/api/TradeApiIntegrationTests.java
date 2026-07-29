@@ -151,6 +151,52 @@ class TradeApiIntegrationTests {
                         .value("must have at most 6 decimal places"))
                 .andExpect(jsonPath("$.errors.executedAt")
                         .value("must not be more than 60 seconds in the future"));
+
+        mockMvc.perform(get("/api/trades"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    void rejectsNegativeAmountsAndMalformedTimestampWithoutLeakingInternals()
+            throws Exception {
+        expectValidationProblem(
+                mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountId": "00000000-0000-0000-0000-000000000001",
+                                  "ticker": "AAPL",
+                                  "side": "BUY",
+                                  "quantity": -1,
+                                  "tradePrice": -0.000001,
+                                  "executedAt": "2026-07-28T06:30:00Z"
+                                }
+                                """)),
+                "quantity",
+                "must be greater than 0")
+                .andExpect(jsonPath("$.errors.tradePrice")
+                        .value("must be greater than 0"));
+
+        expectValidationProblem(
+                mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountId": "00000000-0000-0000-0000-000000000001",
+                                  "ticker": "AAPL",
+                                  "side": "BUY",
+                                  "quantity": 1,
+                                  "tradePrice": 10,
+                                  "executedAt": "not-a-timestamp"
+                                }
+                                """)),
+                "executedAt",
+                "must be a valid ISO-8601 timestamp");
+
+        mockMvc.perform(get("/api/trades"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test
@@ -211,11 +257,12 @@ class TradeApiIntegrationTests {
                 """.formatted(PRIMARY_ACCOUNT_ID, side, executedAt);
     }
 
-    private void expectValidationProblem(
+    private org.springframework.test.web.servlet.ResultActions
+            expectValidationProblem(
             org.springframework.test.web.servlet.ResultActions result,
             String field,
             String message) throws Exception {
-        result.andExpect(status().isBadRequest())
+        return result.andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.type")
