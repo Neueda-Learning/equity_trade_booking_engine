@@ -79,7 +79,7 @@ describe('application navigation', () => {
       await screen.findByRole('heading', { name: 'Create account' }),
     ).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Activity' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Trade' }))
     expect(
       await screen.findByRole('heading', { name: 'Book a trade' }),
     ).toBeInTheDocument()

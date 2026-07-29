@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
   getAccounts,
   getDashboard,
@@ -156,6 +156,7 @@ function Dashboard({
           <PositionTable items={dashboard.positions} />
           <HistoryPanel
             history={history}
+            positions={dashboard.positions}
             loading={historyLoading}
             error={historyError}
             range={range}
@@ -304,12 +305,14 @@ function PositionTable({ items }: { items: PositionPnl[] }) {
 
 function HistoryPanel({
   history,
+  positions,
   loading,
   error,
   range,
   onRange,
 }: {
   history: ValuationHistory | null
+  positions: PositionPnl[]
   loading: boolean
   error: string
   range: HistoryRange
@@ -336,7 +339,9 @@ function HistoryPanel({
           ))}
         </div>
       </div>
-      {loading && <p className="table-state">{t('dashboard.loadingHistory')}</p>}
+      {loading && !history && (
+        <p className="table-state">{t('dashboard.loadingHistory')}</p>
+      )}
       {error && <p className="table-state table-state--error">{error}</p>}
       {!loading && !error && history?.items.length === 0 && (
         <p className="table-state">
@@ -350,26 +355,41 @@ function HistoryPanel({
             {t('dashboard.historyIncomplete')}
           </p>
         )}
-      {!loading && !error && history && history.items.length > 0 && (
-        <ValuationChart items={history.items} />
+      {!error && history && history.items.length > 0 && (
+        <ValuationChart
+          items={history.items}
+          positions={positions}
+          range={range}
+          updating={loading}
+        />
       )}
     </div>
   )
 }
 
-function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
+type ChartSeries = 'market' | 'pnl'
+
+function ValuationChart({
+  items,
+  positions,
+  range,
+  updating,
+}: {
+  items: ValuationSnapshot[]
+  positions: PositionPnl[]
+  range: HistoryRange
+  updating: boolean
+}) {
   const { locale, t } = useI18n()
-  const [activePoint, setActivePoint] = useState<{
-    index: number
-    series: 'market' | 'pnl'
-  } | null>(null)
-  const width = 900
-  const height = 360
-  const plot = { top: 24, right: 28, bottom: 62, left: 104 }
-  const values = items.flatMap((item) => [
-    item.totalMarketValue,
-    item.unrealizedPnl,
-  ])
+  const gradientId = useId().replaceAll(':', '')
+  const [series, setSeries] = useState<ChartSeries>('market')
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const width = 720
+  const height = 400
+  const plot = { top: 36, right: 24, bottom: 48, left: 80 }
+  const values = items.map((item) =>
+    series === 'market' ? item.totalMarketValue : item.unrealizedPnl,
+  )
   const scale = niceChartScale(values, 5)
   const { domainMin, domainMax } = scale
   const spread = domainMax - domainMin
@@ -380,54 +400,105 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
       items.length === 1
         ? plot.left + plotWidth / 2
         : plot.left + (index * plotWidth) / (items.length - 1)
-    const y =
-      plot.top + ((domainMax - value) / spread) * plotHeight
+    const y = plot.top + ((domainMax - value) / spread) * plotHeight
     return { x, y }
   }
-  const market = items.map((item, index) =>
-    point(item.totalMarketValue, index),
-  )
-  const pnl = items.map((item, index) =>
-    point(item.unrealizedPnl, index),
-  )
-  const points = (values: { x: number; y: number }[]) =>
-    values.map(({ x, y }) => `${x},${y}`).join(' ')
+  const chartPoints = values.map(point)
+  const linePath = smoothChartPath(chartPoints)
+  const areaPath = `${linePath} L ${
+    chartPoints.at(-1)?.x ?? plot.left
+  },${height - plot.bottom} L ${
+    chartPoints[0]?.x ?? plot.left
+  },${height - plot.bottom} Z`
   const yTicks = scale.ticks
     .toReversed()
     .map((value) => ({ value, y: point(value, 0).y }))
   const xTickIndexes = chartTickIndexes(items.length, 5)
   const zeroY =
     domainMin <= 0 && domainMax >= 0 ? point(0, 0).y : null
-  const selectedItem = activePoint ? items[activePoint.index] : null
-  const selectedPosition = activePoint
-    ? activePoint.series === 'market'
-      ? market[activePoint.index]
-      : pnl[activePoint.index]
-    : null
-  const tooltipPosition = selectedPosition
-    ? {
-        x: selectedPosition.x,
-        y: Math.min(Math.max(selectedPosition.y, 74), height - 74),
-      }
-    : null
+  const resolvedIndex = Math.min(
+    activeIndex ?? items.length - 1,
+    items.length - 1,
+  )
+  const selectedItem = items[resolvedIndex]
+  const selectedPosition = chartPoints[resolvedIndex]
+  const selectedValue = values[resolvedIndex]
+  const rangeChange = selectedValue - values[0]
+  const rangeChangePercent =
+    values[0] === 0 ? null : (rangeChange / Math.abs(values[0])) * 100
+  const tone =
+    rangeChange > 0 ? 'positive' : rangeChange < 0 ? 'negative' : 'neutral'
+  const seriesLabel =
+    series === 'market'
+      ? t('dashboard.chartMarketValue')
+      : t('common.unrealizedPnl')
 
-  function pointHandlers(index: number, series: 'market' | 'pnl') {
-    return {
-      onMouseEnter: () => setActivePoint({ index, series }),
-      onMouseLeave: () => setActivePoint(null),
-      onFocus: () => setActivePoint({ index, series }),
-      onBlur: () => setActivePoint(null),
-    }
+  const moveCrosshair = (clientX: number, svg: SVGSVGElement) => {
+    const rect = svg.getBoundingClientRect()
+    const viewBoxX = ((clientX - rect.left) / rect.width) * width
+    const ratio = Math.min(
+      Math.max((viewBoxX - plot.left) / plotWidth, 0),
+      1,
+    )
+    setActiveIndex(
+      items.length === 1 ? 0 : Math.round(ratio * (items.length - 1)),
+    )
   }
 
   return (
-    <div className="valuation-chart">
-      <div className="chart-legend">
-        <span><i className="legend-market" />{t('dashboard.chartMarketValue')}</span>
-        <span><i className="legend-pnl" />{t('common.unrealizedPnl')}</span>
+    <div className={`valuation-chart chart-tone--${tone}`}>
+      <div className="chart-terminal-header">
+        <div className="chart-quote">
+          <span>{seriesLabel}</span>
+          <strong>{formatMoney(selectedValue, locale)}</strong>
+          <div className={`chart-change value-${tone}`}>
+            <span>{formatSignedMoney(rangeChange, locale)}</span>
+            {rangeChangePercent !== null && (
+              <span>{formatSignedPercent(rangeChangePercent, locale)}</span>
+            )}
+            <small>{range}</small>
+          </div>
+        </div>
+        <div
+          className="chart-series-tabs"
+          aria-label={t('dashboard.chartSeries')}
+        >
+          <button
+            type="button"
+            aria-pressed={series === 'market'}
+            onClick={() => {
+              setSeries('market')
+              setActiveIndex(null)
+            }}
+          >
+            {t('dashboard.chartMarketValue')}
+          </button>
+          <button
+            type="button"
+            aria-pressed={series === 'pnl'}
+            onClick={() => {
+              setSeries('pnl')
+              setActiveIndex(null)
+            }}
+          >
+            {t('common.unrealizedPnl')}
+          </button>
+        </div>
       </div>
-      <div className="valuation-chart-scroll">
-        <div className="valuation-chart-canvas">
+      <div className="chart-visual-grid">
+        <div className="valuation-chart-scroll">
+          <div
+            className={`valuation-chart-canvas ${
+              updating ? 'is-updating' : ''
+            }`}
+            aria-busy={updating}
+          >
+          {updating && (
+            <span className="chart-updating" role="status">
+              <i aria-hidden="true" />
+              {t('dashboard.chartUpdating')}
+            </span>
+          )}
           <svg
             viewBox={`0 0 ${width} ${height}`}
             role="img"
@@ -436,7 +507,23 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
               points:
                 items.length === 1 ? t('dashboard.point') : t('dashboard.points'),
             })}
+            onPointerMove={(event) =>
+              moveCrosshair(event.clientX, event.currentTarget)}
+            onPointerLeave={() => setActiveIndex(null)}
           >
+            <defs>
+              <linearGradient
+                id={`${gradientId}-area`}
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop offset="0%" stopColor="currentColor" stopOpacity="0.32" />
+                <stop offset="78%" stopColor="currentColor" stopOpacity="0.04" />
+                <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+              </linearGradient>
+            </defs>
             {yTicks.map((tick) => (
               <g key={tick.value}>
                 <line
@@ -460,19 +547,19 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
             {xTickIndexes.map((index) => (
               <g key={items[index].id}>
                 <line
-                  x1={market[index].x}
+                  x1={chartPoints[index].x}
                   y1={plot.top}
-                  x2={market[index].x}
+                  x2={chartPoints[index].x}
                   y2={height - plot.bottom}
                   className="chart-grid chart-grid--vertical"
                 />
                 <text
-                  x={market[index].x}
-                  y={height - plot.bottom + 24}
+                  x={chartPoints[index].x}
+                  y={height - plot.bottom + 26}
                   className="chart-tick"
                   textAnchor="middle"
                 >
-                  {formatAxisDate(items[index].valuationDate, locale)}
+                  {formatAxisDate(items[index], range, locale)}
                 </text>
               </g>
             ))}
@@ -485,114 +572,227 @@ function ValuationChart({ items }: { items: ValuationSnapshot[] }) {
                 className="chart-zero"
               />
             )}
+            <path
+              key={`${series}-${items[0].id}-${items.at(-1)?.id}`}
+              d={areaPath}
+              className="chart-area"
+              fill={`url(#${gradientId}-area)`}
+            />
+            <path
+              key={`line-${series}-${items[0].id}-${items.at(-1)?.id}`}
+              d={linePath}
+              className="chart-line"
+            />
             <line
-              x1={plot.left}
+              x1={selectedPosition.x}
               y1={plot.top}
-              x2={plot.left}
+              x2={selectedPosition.x}
               y2={height - plot.bottom}
-              className="chart-axis"
+              className="chart-crosshair"
             />
             <line
               x1={plot.left}
-              y1={height - plot.bottom}
+              y1={selectedPosition.y}
               x2={width - plot.right}
-              y2={height - plot.bottom}
-              className="chart-axis"
+              y2={selectedPosition.y}
+              className="chart-crosshair chart-crosshair--horizontal"
             />
-            <text
-              x={18}
-              y={plot.top + plotHeight / 2}
-              className="chart-axis-label"
-              textAnchor="middle"
-              transform={`rotate(-90 18 ${plot.top + plotHeight / 2})`}
-            >
-              {t('dashboard.chartValueAxis')}
-            </text>
-            <text
-              x={plot.left + plotWidth / 2}
-              y={height - 12}
-              className="chart-axis-label"
-              textAnchor="middle"
-            >
-              {t('dashboard.chartTimeAxis')}
-            </text>
-            <polyline points={points(market)} className="chart-market" />
-            <polyline points={points(pnl)} className="chart-pnl" />
             {items.map((item, index) => (
-              <g key={item.id}>
-                <circle
-                  cx={market[index].x}
-                  cy={market[index].y}
-                  r="7"
-                  tabIndex={0}
-                  aria-label={t('dashboard.chartPointAria', {
-                    series: t('dashboard.chartMarketValue'),
-                    date: formatDate(item.valuationDate, locale),
-                    value: formatMoney(item.totalMarketValue, locale),
-                  })}
-                  className={`chart-market-point ${
-                    activePoint?.index === index
-                      && activePoint.series === 'market'
-                      ? 'is-active'
-                      : ''
-                  }`}
-                  {...pointHandlers(index, 'market')}
-                >
-                  <title>{tooltip(item, locale, t)}</title>
-                </circle>
-                <circle
-                  cx={pnl[index].x}
-                  cy={pnl[index].y}
-                  r="6"
-                  tabIndex={0}
-                  aria-label={t('dashboard.chartPointAria', {
-                    series: t('common.unrealizedPnl'),
-                    date: formatDate(item.valuationDate, locale),
-                    value: formatMoney(item.unrealizedPnl, locale),
-                  })}
-                  className={`chart-pnl-point ${
-                    activePoint?.index === index
-                      && activePoint.series === 'pnl'
-                      ? 'is-active'
-                      : ''
-                  }`}
-                  {...pointHandlers(index, 'pnl')}
-                >
-                  <title>{tooltip(item, locale, t)}</title>
-                </circle>
-              </g>
+              <circle
+                key={`${series}-${item.id}`}
+                cx={chartPoints[index].x}
+                cy={chartPoints[index].y}
+                r={resolvedIndex === index ? 6 : 12}
+                tabIndex={0}
+                aria-label={t('dashboard.chartPointAria', {
+                  series: seriesLabel,
+                  date: formatDate(item.valuationDate, locale),
+                  value: formatMoney(values[index], locale),
+                })}
+                className={`chart-data-point ${
+                  resolvedIndex === index ? 'is-active' : ''
+                }`}
+                onPointerEnter={() => setActiveIndex(index)}
+                onFocus={() => setActiveIndex(index)}
+                onBlur={() => setActiveIndex(null)}
+              >
+                <title>
+                  {formatDateTime(item.capturedAt, locale)} · {seriesLabel}:{' '}
+                  {values[index]}
+                </title>
+              </circle>
             ))}
           </svg>
-          {selectedItem && tooltipPosition && (
-            <div
-              className={`chart-tooltip ${
-                tooltipPosition.x > width * 0.58
-                  ? 'chart-tooltip--left'
-                  : 'chart-tooltip--right'
-              }`}
-              role="status"
-              style={{
-                left: `${(tooltipPosition.x / width) * 100}%`,
-                top: `${(tooltipPosition.y / height) * 100}%`,
-              }}
-            >
-              <strong>{formatDate(selectedItem.valuationDate, locale)}</strong>
-              <span>
-                <i className="legend-market" />
-                {t('dashboard.chartMarketValue')}
-                <b>{formatMoney(selectedItem.totalMarketValue, locale)}</b>
-              </span>
-              <span>
-                <i className="legend-pnl" />
-                {t('common.unrealizedPnl')}
-                <b>{formatMoney(selectedItem.unrealizedPnl, locale)}</b>
-              </span>
+            <div className="chart-cursor-readout">
+              <span>{formatDateTime(selectedItem.capturedAt, locale)}</span>
+              <strong>{formatMoney(selectedValue, locale)}</strong>
             </div>
-          )}
+          </div>
         </div>
+        <AllocationPie positions={positions} />
       </div>
     </div>
   )
+}
+
+const allocationColors = [
+  '#60a5fa',
+  '#f59e0b',
+  '#a78bfa',
+  '#22d3ee',
+  '#f472b6',
+  '#94a3b8',
+]
+
+function AllocationPie({ positions }: { positions: PositionPnl[] }) {
+  const { locale, t } = useI18n()
+  const holdings = positions
+    .filter(
+      (position) =>
+        position.available
+        && position.marketValue !== null
+        && position.marketValue > 0,
+    )
+    .map((position) => ({
+      ticker: position.ticker,
+      value: position.marketValue as number,
+    }))
+    .sort((left, right) => right.value - left.value)
+  const total = holdings.reduce((sum, holding) => sum + holding.value, 0)
+  const leading = holdings.slice(0, 5)
+  const otherValue = holdings
+    .slice(5)
+    .reduce((sum, holding) => sum + holding.value, 0)
+  const slices = [
+    ...leading,
+    ...(otherValue > 0
+      ? [{ ticker: t('dashboard.allocationOther'), value: otherValue }]
+      : []),
+  ].map((slice, index) => ({
+    ...slice,
+    color: allocationColors[index],
+  }))
+  const radius = 76
+  const circumference = 2 * Math.PI * radius
+  let accumulated = 0
+  const segments = slices.map((slice) => {
+    const fraction = slice.value / total
+    const segment = {
+      ...slice,
+      fraction,
+      offset: accumulated,
+    }
+    accumulated += fraction
+    return segment
+  })
+
+  return (
+    <section className="allocation-panel">
+      <div className="allocation-heading">
+        <h4>{t('dashboard.allocationTitle')}</h4>
+        <p>{t('dashboard.allocationDescription')}</p>
+      </div>
+      {segments.length === 0 ? (
+        <div className="allocation-empty">
+          <span aria-hidden="true" />
+          <p>{t('dashboard.allocationEmpty')}</p>
+        </div>
+      ) : (
+        <div className="allocation-content">
+          <svg
+            className="allocation-pie"
+            viewBox="0 0 220 220"
+            role="img"
+            aria-label={t('dashboard.allocationAria', {
+              count: holdings.length,
+            })}
+          >
+            <circle
+              cx="110"
+              cy="110"
+              r={radius}
+              className="allocation-track"
+            />
+            {segments.map((segment) => (
+              <circle
+                key={segment.ticker}
+                cx="110"
+                cy="110"
+                r={radius}
+                fill="none"
+                stroke={segment.color}
+                strokeWidth="36"
+                strokeDasharray={`${
+                  segment.fraction * circumference
+                } ${circumference}`}
+                strokeDashoffset={-segment.offset * circumference}
+                transform="rotate(-90 110 110)"
+                className="allocation-segment"
+                tabIndex={0}
+                aria-label={`${segment.ticker}, ${formatMoney(
+                  segment.value,
+                  locale,
+                )}, ${formatAllocationPercent(
+                  segment.fraction,
+                  locale,
+                )}`}
+              >
+                <title>
+                  {segment.ticker} · {formatMoney(segment.value, locale)} ·{' '}
+                  {formatAllocationPercent(segment.fraction, locale)}
+                </title>
+              </circle>
+            ))}
+            <text
+              x="110"
+              y="100"
+              textAnchor="middle"
+              className="allocation-center-label"
+            >
+              {t('dashboard.allocationTotal')}
+            </text>
+            <text
+              x="110"
+              y="126"
+              textAnchor="middle"
+              className="allocation-center-value"
+            >
+              {formatAxisMoney(total, locale)}
+            </text>
+          </svg>
+          <ol className="allocation-legend">
+            {segments.map((segment) => (
+              <li key={segment.ticker}>
+                <i
+                  aria-hidden="true"
+                  style={{ backgroundColor: segment.color }}
+                />
+                <div>
+                  <strong>{segment.ticker}</strong>
+                  <span>{formatMoney(segment.value, locale)}</span>
+                </div>
+                <b>
+                  {formatAllocationPercent(segment.fraction, locale)}
+                </b>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function smoothChartPath(points: { x: number; y: number }[]) {
+  if (points.length === 0) return ''
+  if (points.length === 1) {
+    return `M ${points[0].x},${points[0].y}`
+  }
+  return points.slice(1).reduce((path, point, index) => {
+    const previous = points[index]
+    const midpoint = (previous.x + point.x) / 2
+    return `${path} C ${midpoint},${previous.y} ${midpoint},${point.y} ${point.x},${point.y}`
+  }, `M ${points[0].x},${points[0].y}`)
 }
 
 function chartTickIndexes(length: number, maxTicks: number) {
@@ -607,10 +807,16 @@ function chartTickIndexes(length: number, maxTicks: number) {
 }
 
 function niceChartScale(values: number[], targetTicks: number) {
-  const rawMin = Math.min(...values, 0)
-  const rawMax = Math.max(...values, 0)
-  const rawRange = rawMax - rawMin || Math.max(Math.abs(rawMax), 1)
-  const roughStep = rawRange / Math.max(targetTicks - 1, 1)
+  const valueMin = Math.min(...values)
+  const valueMax = Math.max(...values)
+  const valueRange = valueMax - valueMin
+  const padding =
+    valueRange === 0
+      ? Math.max(Math.abs(valueMax) * 0.08, 1)
+      : valueRange * 0.12
+  const rawMin = valueMin - padding
+  const rawMax = valueMax + padding
+  const roughStep = (rawMax - rawMin) / Math.max(targetTicks - 1, 1)
   const magnitude = 10 ** Math.floor(Math.log10(roughStep))
   const normalized = roughStep / magnitude
   const factor =
@@ -634,12 +840,28 @@ function niceChartScale(values: number[], targetTicks: number) {
   return { domainMin, domainMax, ticks }
 }
 
-function formatAxisDate(value: string, locale: string) {
-  return new Intl.DateTimeFormat(locale, {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(`${value}T00:00:00Z`))
+function formatAxisDate(
+  item: ValuationSnapshot,
+  range: HistoryRange,
+  locale: string,
+) {
+  return new Intl.DateTimeFormat(
+    locale,
+    range === '1D'
+      ? {
+          hour: '2-digit',
+          minute: '2-digit',
+        }
+      : {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'UTC',
+        },
+  ).format(
+    range === '1D'
+      ? new Date(item.capturedAt)
+      : new Date(`${item.valuationDate}T00:00:00Z`),
+  )
 }
 
 function formatAxisMoney(value: number, locale: string) {
@@ -647,6 +869,14 @@ function formatAxisMoney(value: number, locale: string) {
     style: 'currency',
     currency: 'USD',
     notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value)
+}
+
+function formatAllocationPercent(value: number, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    style: 'percent',
+    minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(value)
 }
@@ -728,18 +958,6 @@ function RecentActivity({
       )}
     </div>
   )
-}
-
-function tooltip(
-  item: ValuationSnapshot,
-  locale: string,
-  t: ReturnType<typeof useI18n>['t'],
-) {
-  return [
-    formatDate(item.valuationDate, locale),
-    `${t('dashboard.chartMarketValue')}: ${item.totalMarketValue}`,
-    `${t('common.unrealizedPnl')}: ${item.unrealizedPnl}`,
-  ].join(' · ')
 }
 
 function valueClass(value: number | null) {

@@ -487,7 +487,6 @@ function TradeBooking() {
                   <th>{t('common.quantity')}</th>
                   <th>{t('trade.price')}</th>
                   <th>{t('trade.executed')}</th>
-                  <th>{t('trade.operationTime')}</th>
                   <th>{t('common.status')}</th>
                   <th>{t('trade.audit')}</th>
                   <th>{t('common.actions')}</th>
@@ -509,7 +508,6 @@ function TradeBooking() {
                     <td>{formatDecimal(trade.quantity, locale)}</td>
                     <td>{formatMoney(trade.tradePrice, locale)}</td>
                     <td>{formatDateTime(trade.executedAt, locale)}</td>
-                    <td>{formatDateTime(trade.createdAt, locale)}</td>
                     <td>
                       <span className="status-pill">
                         {localizedStatus(trade.status, t)}

@@ -151,7 +151,7 @@ describe('P&L Dashboard', () => {
     )
   })
 
-  it('renders a multiple-point history chart with precise tooltips', async () => {
+  it('renders an interactive trading chart with switchable metrics', async () => {
     vi.stubGlobal(
       'fetch',
       routedFetch(
@@ -172,19 +172,52 @@ describe('P&L Dashboard', () => {
     expect(
       screen.getAllByText(/Market Value: 120.123456/).length,
     ).toBeGreaterThan(0)
-    expect(screen.getByText('Value (USD)')).toBeInTheDocument()
-    expect(screen.getByText('Time')).toBeInTheDocument()
-
-    const marketPoint = screen.getByLabelText(
-      /Market Value, .*, \$120\.123456/,
+    expect(screen.getAllByText('$125.654321').length).toBeGreaterThan(0)
+    const metricSelector = screen.getByLabelText('Chart metric')
+    const pnlButton = metricSelector.querySelector(
+      'button[aria-pressed="false"]',
     )
-    fireEvent.mouseEnter(marketPoint)
-    const tooltip = screen.getByRole('status')
-    expect(tooltip).toHaveTextContent('$120.123456')
-    expect(tooltip).toHaveTextContent('$20.123456')
+    expect(pnlButton).not.toBeNull()
+    fireEvent.click(pnlButton!)
+    expect(screen.getAllByText('$25.654321').length).toBeGreaterThan(0)
 
-    fireEvent.mouseLeave(marketPoint)
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    const pnlPoint = screen.getByLabelText(
+      /Unrealized P&L, .*, \$20\.123456/,
+    )
+    fireEvent.pointerEnter(pnlPoint)
+    expect(screen.getAllByText('$20.123456').length).toBeGreaterThan(0)
+  })
+
+  it('shows portfolio allocation beside the valuation curve', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch(
+        dashboard({
+          positions: [
+            position('AAPL', 100, 120, 20, 20),
+            position('MSFT', 100, 80, -20, -20),
+          ],
+        }),
+        history([
+          snapshot('one', '2026-07-27T09:00:00Z', 180, -20),
+          snapshot('two', '2026-07-28T09:00:00Z', 200, 0),
+        ]),
+      ),
+    )
+
+    render(<Dashboard />)
+
+    expect(
+      await screen.findByRole('img', {
+        name: 'Portfolio allocation chart with 2 holdings',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('AAPL, $120.00, 60.0%'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('MSFT, $80.00, 40.0%'),
+    ).toBeInTheDocument()
   })
 
   it('shows a history server error without hiding dashboard data', async () => {
