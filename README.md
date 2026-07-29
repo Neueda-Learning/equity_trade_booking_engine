@@ -15,7 +15,8 @@ labelled `MOCK`; Finnhub quotes and Redis fallback values are distinguished as
 ## Features
 
 - Multiple ACTIVE or INACTIVE securities accounts with no physical deletion
-- BUY and SELL booking with account/ticker position isolation
+- BUY and SELL booking with verified US stock, ADR, or ETF selection
+- Audit-preserved Activity amendments and deletion, plus cancellation
 - Idempotent cancellation and chronological no-short validation
 - Weighted-average Position quantity, average cost, and cost basis
 - Deterministic Mock quotes or explicitly configured Finnhub quotes
@@ -37,7 +38,9 @@ USD. There is no cash balance or multi-currency ledger.
 Account 1 ──── * Trade
   │               │
   │               ├── side: BUY | SELL
-  │               └── status: BOOKED | CANCELLED
+  │               ├── status: BOOKED | CANCELLED
+  │               ├── cancellationReason: CANCELLED | DELETED | AMENDED
+  │               └── supersedesTradeId: replacement audit link
   │
   ├── computed Position (account + ticker, BOOKED trades only)
   │
@@ -175,7 +178,8 @@ Run the backend and open:
 The document covers:
 
 - Account create/list/get/update/deactivate
-- Trade create/list and cancellation
+- Trade create/list, cancellation, audit-preserved deletion, and amendment
+- Provider-backed ticker/company search for supported US securities
 - Position aggregate and account-specific queries
 - Single, batch, refresh, and provider-status Market Data endpoints
 - P&L, Dashboard refresh, and valuation history
@@ -317,7 +321,10 @@ development examples and must not be reused as production credentials.
 - No short positions
 - Unrealized P&L only; no realized P&L
 - Weighted average cost only; no FIFO/LIFO
-- No trade editing or physical deletion
+- Activity deletion is a soft, audit-preserved cancellation; there is no
+  physical trade deletion
+- Activity editing creates an audit-linked replacement instead of mutating the
+  original trade
 - No WebSocket quotes or historical candle API
 - No fabricated valuation history
 - Finnhub quote integration only; Mock remains the default development provider

@@ -16,7 +16,9 @@ public record TradeView(
         Instant executedAt,
         String status,
         Instant createdAt,
-        Instant cancelledAt) {
+        Instant cancelledAt,
+        String cancellationReason,
+        UUID supersedesTradeId) {
 
     static TradeView from(Trade trade) {
         return new TradeView(
@@ -29,6 +31,10 @@ public record TradeView(
                 trade.executedAt(),
                 trade.status().name(),
                 trade.createdAt(),
-                trade.cancelledAt());
+                trade.cancelledAt(),
+                trade.cancellationReason() == null
+                        ? null
+                        : trade.cancellationReason().name(),
+                trade.supersedesTradeId());
     }
 }

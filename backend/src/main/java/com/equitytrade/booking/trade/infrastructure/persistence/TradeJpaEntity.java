@@ -1,5 +1,6 @@
 package com.equitytrade.booking.trade.infrastructure.persistence;
 
+import com.equitytrade.booking.trade.domain.TradeCancellationReason;
 import com.equitytrade.booking.trade.domain.TradeSide;
 import com.equitytrade.booking.trade.domain.TradeStatus;
 import jakarta.persistence.Column;
@@ -50,6 +51,14 @@ class TradeJpaEntity {
     @Column(name = "cancelled_at", columnDefinition = "datetime(6)")
     private LocalDateTime cancelledAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancellation_reason", length = 16)
+    private TradeCancellationReason cancellationReason;
+
+    @Column(name = "supersedes_trade_id", length = 36,
+            columnDefinition = "char(36)")
+    private String supersedesTradeId;
+
     protected TradeJpaEntity() {
     }
 
@@ -63,7 +72,9 @@ class TradeJpaEntity {
             LocalDateTime executedAt,
             TradeStatus status,
             LocalDateTime createdAt,
-            LocalDateTime cancelledAt) {
+            LocalDateTime cancelledAt,
+            TradeCancellationReason cancellationReason,
+            String supersedesTradeId) {
         this.id = id;
         this.accountId = accountId;
         this.ticker = ticker;
@@ -74,6 +85,8 @@ class TradeJpaEntity {
         this.status = status;
         this.createdAt = createdAt;
         this.cancelledAt = cancelledAt;
+        this.cancellationReason = cancellationReason;
+        this.supersedesTradeId = supersedesTradeId;
     }
 
     String getId() {
@@ -114,5 +127,13 @@ class TradeJpaEntity {
 
     LocalDateTime getCancelledAt() {
         return cancelledAt;
+    }
+
+    TradeCancellationReason getCancellationReason() {
+        return cancellationReason;
+    }
+
+    String getSupersedesTradeId() {
+        return supersedesTradeId;
     }
 }

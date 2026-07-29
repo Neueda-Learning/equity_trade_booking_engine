@@ -16,9 +16,13 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   const accountName = `E2E ${testInfo.project.name}`
   const ticker = testInfo.project.name.startsWith('mobile') ? 'MSFT' : 'AAPL'
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Trade Booking Engine' }))
+  await expect(page.getByRole('heading', { name: 'Dashboard' }))
     .toBeVisible()
-  await expect(page.getByText('Connected')).toBeVisible()
+  if (await page.getByRole('button', { name: 'Open navigation' }).isVisible()) {
+    await expect(page.getByLabel('Backend connected')).toBeVisible()
+  } else {
+    await expect(page.getByText('Connected')).toBeVisible()
+  }
   await expect(page.getByRole('heading', { name: 'Recent Activity' })).toBeVisible()
   await expectNoPageOverflow(page)
 
@@ -44,6 +48,9 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   await expect(
     page.getByText(`${ticker} BUY trade booked successfully.`),
   ).toBeVisible()
+  await accountSelector(page).selectOption({
+    label: accountName,
+  })
   await bookTrade(page, 'SELL', ticker, '4', '110')
   await expect(
     page.getByText(`${ticker} SELL trade booked successfully.`),
@@ -91,11 +98,15 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   await navigate(page, 'Activity')
   page.once('dialog', (dialog) => dialog.accept())
   await activityRow(page, accountName, ticker, 'SELL')
-    .getByRole('button', { name: 'Cancel' })
+    .getByRole('button', { name: 'Delete' })
     .click()
-  await expect(page.getByText('Trade cancelled successfully.')).toBeVisible()
+  await expect(
+    page.getByText('Activity deleted with its audit record preserved.'),
+  ).toBeVisible()
   await expect(activityRow(page, accountName, ticker, 'SELL'))
     .toContainText('CANCELLED')
+  await expect(activityRow(page, accountName, ticker, 'SELL'))
+    .toContainText('DELETED')
 
   await navigate(page, 'Accounts')
   await page
@@ -152,6 +163,8 @@ async function navigate(
   page: Page,
   name: 'Dashboard' | 'Accounts' | 'Activity' | 'Market Data',
 ) {
+  const menu = page.getByRole('button', { name: 'Open navigation' })
+  if (await menu.isVisible()) await menu.click()
   await page.getByRole('button', { name, exact: true }).click()
   await expect(
     page.getByRole('button', { name, exact: true }),
@@ -165,8 +178,18 @@ async function bookTrade(
   quantity: string,
   price: string,
 ) {
-  await page.getByLabel('Side').selectOption(side)
-  await page.getByLabel('Ticker').fill(ticker)
+  await page
+    .getByRole('combobox', { name: 'Side', exact: true })
+    .selectOption(side)
+  const tickerSearch = page.getByRole('combobox', {
+    name: 'Ticker or company',
+  })
+  await tickerSearch.fill(ticker)
+  await page.getByRole('option', {
+    name: new RegExp(`^${ticker}\\b`),
+  }).click()
+  await expect(page.getByText(new RegExp(`^Verified: ${ticker}`)))
+    .toBeVisible()
   await page.getByLabel('Quantity').fill(quantity)
   await page.getByLabel('Trade price (USD)').fill(price)
   await page.getByRole('button', { name: `Book ${side} trade` }).click()

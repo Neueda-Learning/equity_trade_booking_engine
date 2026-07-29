@@ -20,7 +20,9 @@ public record Trade(
         Instant executedAt,
         TradeStatus status,
         Instant createdAt,
-        Instant cancelledAt) {
+        Instant cancelledAt,
+        TradeCancellationReason cancellationReason,
+        UUID supersedesTradeId) {
 
     private static final Pattern TICKER_PATTERN =
             Pattern.compile("[A-Z][A-Z0-9.-]{0,9}");
@@ -37,6 +39,16 @@ public record Trade(
         Objects.requireNonNull(executedAt);
         Objects.requireNonNull(status);
         Objects.requireNonNull(createdAt);
+        if (status == TradeStatus.BOOKED
+                && (cancelledAt != null || cancellationReason != null)) {
+            throw new IllegalArgumentException(
+                    "Booked trades cannot have cancellation audit data");
+        }
+        if (status == TradeStatus.CANCELLED
+                && (cancelledAt == null || cancellationReason == null)) {
+            throw new IllegalArgumentException(
+                    "Cancelled trades require cancellation audit data");
+        }
     }
 
     public static Trade book(
@@ -82,10 +94,18 @@ public record Trade(
                 executedAt.truncatedTo(ChronoUnit.MICROS),
                 TradeStatus.BOOKED,
                 now.truncatedTo(ChronoUnit.MICROS),
+                null,
+                null,
                 null);
     }
 
     public Trade cancel(Instant now) {
+        return cancel(now, TradeCancellationReason.CANCELLED);
+    }
+
+    public Trade cancel(
+            Instant now,
+            TradeCancellationReason reason) {
         if (status == TradeStatus.CANCELLED) {
             return this;
         }
@@ -99,7 +119,29 @@ public record Trade(
                 executedAt,
                 TradeStatus.CANCELLED,
                 createdAt,
-                now.truncatedTo(ChronoUnit.MICROS));
+                now.truncatedTo(ChronoUnit.MICROS),
+                Objects.requireNonNull(reason),
+                supersedesTradeId);
+    }
+
+    public Trade superseding(UUID originalTradeId) {
+        if (status != TradeStatus.BOOKED) {
+            throw new IllegalStateException(
+                    "Only booked trades can supersede another trade");
+        }
+        return new Trade(
+                id,
+                accountId,
+                ticker,
+                side,
+                quantity,
+                tradePrice,
+                executedAt,
+                status,
+                createdAt,
+                cancelledAt,
+                cancellationReason,
+                Objects.requireNonNull(originalTradeId));
     }
 
     private static String normalizeTicker(

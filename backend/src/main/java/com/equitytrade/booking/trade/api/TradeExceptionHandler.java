@@ -4,6 +4,7 @@ import com.equitytrade.booking.account.application.AccountConflictException;
 import com.equitytrade.booking.account.application.AccountNotFoundException;
 import com.equitytrade.booking.account.application.AccountUseCaseValidationException;
 import com.equitytrade.booking.marketdata.application.DemoControlsNotFoundException;
+import com.equitytrade.booking.marketdata.application.InstrumentSearchUnavailableException;
 import com.equitytrade.booking.marketdata.application.MarketDataNotFoundException;
 import com.equitytrade.booking.marketdata.application.MarketDataUnavailableException;
 import com.equitytrade.booking.marketdata.application.MarketDataValidationException;
@@ -149,6 +150,19 @@ public class TradeExceptionHandler {
                                 + exception.ticker(),
                         "provider",
                         unavailableReason(exception)),
+                request);
+    }
+
+    @ExceptionHandler(InstrumentSearchUnavailableException.class)
+    ResponseEntity<ProblemDetail> handleInstrumentSearchUnavailable(
+            InstrumentSearchUnavailableException exception,
+            HttpServletRequest request) {
+        return problem(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                MARKET_DATA_UNAVAILABLE_PROBLEM_TYPE,
+                "Instrument search unavailable",
+                "The security search provider is currently unavailable.",
+                Map.of("ticker", "could not be verified"),
                 request);
     }
 

@@ -235,6 +235,132 @@
   fill: #7c3aed;
 }
 
+.recent-activity-heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.recent-activity-heading h3,
+.recent-activity-heading .section-kicker {
+  margin: 0;
+}
+
+.recent-activity-heading .section-kicker {
+  margin-bottom: 5px;
+}
+
+.activity-link {
+  padding: 8px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.activity-timeline {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-timeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 13px;
+  padding: 10px 0 18px;
+}
+
+.activity-timeline li:not(:last-child)::before {
+  position: absolute;
+  top: 46px;
+  bottom: 0;
+  left: 19px;
+  width: 2px;
+  background: #e2e8f0;
+  content: '';
+}
+
+.activity-marker {
+  z-index: 1;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
+.activity-marker--buy {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.activity-marker--sell {
+  color: #9f1239;
+  background: #ffe4e6;
+}
+
+.activity-summary {
+  min-width: 0;
+}
+
+.activity-summary > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.activity-summary p {
+  margin: 7px 0 4px;
+  color: #334155;
+  font-size: 0.88rem;
+}
+
+.activity-summary small {
+  display: block;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.activity-summary .activity-cancelled {
+  margin-top: 4px;
+  color: #92400e;
+  font-weight: 700;
+}
+
+.side-pill {
+  display: inline-flex;
+  min-width: 44px;
+  justify-content: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.side-pill--buy {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.side-pill--sell {
+  color: #9f1239;
+  background: #ffe4e6;
+}
+
 @media (max-width: 760px) {
   .dashboard-heading,
   .dashboard-status,
@@ -262,5 +388,10 @@
 
   .range-tabs {
     overflow-x: auto;
+  }
+
+  .recent-activity-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

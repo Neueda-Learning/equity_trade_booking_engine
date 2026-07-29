@@ -89,7 +89,11 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
                         ? null
                         : trade.cancelledAt()
                                 .atOffset(ZoneOffset.UTC)
-                                .toLocalDateTime());
+                                .toLocalDateTime(),
+                trade.cancellationReason(),
+                trade.supersedesTradeId() == null
+                        ? null
+                        : trade.supersedesTradeId().toString());
     }
 
     private Trade toDomain(TradeJpaEntity entity) {
@@ -105,6 +109,10 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
                 entity.getCreatedAt().toInstant(ZoneOffset.UTC),
                 entity.getCancelledAt() == null
                         ? null
-                        : entity.getCancelledAt().toInstant(ZoneOffset.UTC));
+                        : entity.getCancelledAt().toInstant(ZoneOffset.UTC),
+                entity.getCancellationReason(),
+                entity.getSupersedesTradeId() == null
+                        ? null
+                        : UUID.fromString(entity.getSupersedesTradeId()));
     }
 }
