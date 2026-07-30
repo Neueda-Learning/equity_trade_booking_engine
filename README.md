@@ -12,6 +12,11 @@ The application never presents generated data as real. Mock quotes are clearly
 labelled `MOCK`; Finnhub quotes and Redis fallback values are distinguished as
 `LIVE`, `CACHED`, or `STALE`.
 
+## Documentation
+
+- [Stock trading knowledge and project implementation guide (中文)](docs/STOCK_TRADING_KNOWLEDGE.md)
+- [Technical documentation](docs/TECHNICAL_DOCUMENTATION.md)
+
 ## Features
 
 - Multiple ACTIVE or INACTIVE securities accounts with no physical deletion
