@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,7 +37,7 @@ public class AccountController {
     @PostMapping
     @Operation(
             summary = "Create a securities account",
-            description = "Creates an ACTIVE USD account. Account names are unique.")
+            description = "Creates an ACTIVE USD account. If a deleted account has the same name, restores that account and its history using the supplied account details.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Account created"),
         @ApiResponse(
@@ -156,6 +157,28 @@ public class AccountController {
                                     ProblemDetailsDocumentation.class)))
     public AccountResponse activate(@PathVariable UUID id) {
         return AccountResponse.from(accountApplicationService.activate(id));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(
+            summary = "Hide a securities account",
+            description = "Soft-deletes the account from normal system views while preserving its trades and valuation history. Creating an account with the same name restores it.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "204",
+                description = "Account hidden and retained for restoration"),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Account does not exist",
+                content = @Content(
+                        mediaType = "application/problem+json",
+                        schema = @Schema(
+                                implementation =
+                                        ProblemDetailsDocumentation.class)))
+    })
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        accountApplicationService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
     private AccountCommand toCommand(AccountRequest request) {

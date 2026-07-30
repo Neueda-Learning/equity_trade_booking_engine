@@ -182,6 +182,11 @@ class MarketDataApplicationServiceTests {
         public void put(MarketQuote quote) {
             values.put(quote.ticker(), quote);
         }
+
+        @Override
+        public List<String> tickers() {
+            return values.keySet().stream().sorted().toList();
+        }
     }
 
     private static final class StubProvider implements MarketDataProvider {

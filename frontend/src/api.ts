@@ -245,6 +245,9 @@ async function request<T>(
   init?: RequestInit,
 ): Promise<T> {
   const response = await fetch(url, init)
+  if (response.ok && response.status === 204) {
+    return undefined as T
+  }
   const payload = (await response.json()) as T | ProblemDetails
   if (!response.ok) {
     throw new ApiProblemError(payload as ProblemDetails)
@@ -285,6 +288,12 @@ export function deactivateAccount(id: string) {
 export function activateAccount(id: string) {
   return request<Account>(`/api/accounts/${id}/activate`, {
     method: 'POST',
+  })
+}
+
+export function deleteAccount(id: string) {
+  return request<void>(`/api/accounts/${id}`, {
+    method: 'DELETE',
   })
 }
 

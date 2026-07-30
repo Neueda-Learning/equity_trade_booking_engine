@@ -148,6 +148,14 @@ function MarketData() {
     }
   }
 
+  function removeSearchedQuote(ticker: string) {
+    setSearchedQuotes((current) =>
+      current.filter((quote) => quote.ticker !== ticker),
+    )
+    setSearchFailures((current) => withoutKey(current, ticker))
+    forgetSearchedTicker(ticker)
+  }
+
   async function refresh(quote: MarketQuote) {
     setRefreshingTicker(quote.ticker)
     setMessage('')
@@ -415,6 +423,7 @@ function MarketData() {
             refreshingAll={refreshingAll}
             controlsLocked={demoChanging}
             onRefresh={refresh}
+            onRemove={removeSearchedQuote}
           />
         </div>
       )}
@@ -539,6 +548,7 @@ function QuoteTable({
   refreshingAll,
   controlsLocked,
   onRefresh,
+  onRemove,
 }: {
   quotes: MarketQuote[]
   unavailableQuotes?: UnavailableQuote[]
@@ -546,6 +556,7 @@ function QuoteTable({
   refreshingAll: boolean
   controlsLocked: boolean
   onRefresh: (quote: MarketQuote) => Promise<void>
+  onRemove?: (ticker: string) => void
 }) {
   const { locale, t } = useI18n()
   return (
@@ -593,20 +604,39 @@ function QuoteTable({
                 </div>
               </td>
               <td>
-                <button
-                  type="button"
-                  className="button-secondary"
-                  disabled={
-                    controlsLocked
-                    || refreshingAll
-                    || refreshingTicker === quote.ticker
-                  }
-                  onClick={() => void onRefresh(quote)}
-                >
-                  {refreshingAll || refreshingTicker === quote.ticker
-                    ? t('common.refreshing')
-                    : t('market.refreshTicker', { ticker: quote.ticker })}
-                </button>
+                <div className="quote-actions">
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={
+                      controlsLocked
+                      || refreshingAll
+                      || refreshingTicker === quote.ticker
+                    }
+                    onClick={() => void onRefresh(quote)}
+                  >
+                    {refreshingAll || refreshingTicker === quote.ticker
+                      ? t('common.refreshing')
+                      : t('market.refreshTicker', { ticker: quote.ticker })}
+                  </button>
+                  {onRemove && (
+                    <button
+                      type="button"
+                      className="button-danger"
+                      aria-label={t('market.removeTicker', {
+                        ticker: quote.ticker,
+                      })}
+                      disabled={
+                        controlsLocked
+                        || refreshingAll
+                        || refreshingTicker === quote.ticker
+                      }
+                      onClick={() => onRemove(quote.ticker)}
+                    >
+                      {t('common.delete')}
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}
@@ -617,13 +647,29 @@ function QuoteTable({
                 {quote.message}
               </td>
               <td>
-                <div className="quote-labels">
-                  <span className="label-warning">
-                    {t('common.unavailable')}
-                  </span>
+                <div className="quote-actions">
+                  <div className="quote-labels">
+                    <span className="label-warning">
+                      {t('common.unavailable')}
+                    </span>
+                  </div>
                 </div>
               </td>
-              <td>—</td>
+              <td>
+                {onRemove ? (
+                  <button
+                    type="button"
+                    className="button-danger"
+                    aria-label={t('market.removeTicker', {
+                      ticker: quote.ticker,
+                    })}
+                    disabled={controlsLocked || refreshingAll}
+                    onClick={() => onRemove(quote.ticker)}
+                  >
+                    {t('common.delete')}
+                  </button>
+                ) : '—'}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -710,6 +756,24 @@ function rememberSearchedTicker(ticker: string) {
     }
   } catch {
     // Search remains usable when browser storage is unavailable.
+  }
+}
+
+function forgetSearchedTicker(ticker: string) {
+  try {
+    const tickers = loadSearchedTickers().filter(
+      (savedTicker) => savedTicker !== ticker,
+    )
+    if (tickers.length === 0) {
+      window.localStorage.removeItem(SEARCHED_TICKERS_KEY)
+    } else {
+      window.localStorage.setItem(
+        SEARCHED_TICKERS_KEY,
+        JSON.stringify(tickers),
+      )
+    }
+  } catch {
+    // Removing a visible row remains usable when storage is unavailable.
   }
 }
 

@@ -115,6 +115,13 @@ class PnlDashboardMySqlRedisIT {
                         SELECT COUNT(*)
                         FROM flyway_schema_history
                         WHERE version = '8' AND success = 1
+                """,
+                Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM flyway_schema_history
+                        WHERE version = '9' AND success = 1
                         """,
                 Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
@@ -140,6 +147,15 @@ class PnlDashboardMySqlRedisIT {
                         WHERE constraint_schema = DATABASE()
                           AND constraint_name =
                             'fk_valuation_snapshots_account'
+                """,
+                Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_schema = DATABASE()
+                          AND table_name = 'accounts'
+                          AND column_name = 'deleted_at'
                         """,
                 Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(

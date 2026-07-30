@@ -16,7 +16,8 @@ public record Account(
         String baseCurrency,
         AccountStatus status,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt,
+        Instant deletedAt) {
 
     private static final Pattern LAST4_PATTERN = Pattern.compile("[0-9]{4}");
 
@@ -45,7 +46,8 @@ public record Account(
                 "USD",
                 AccountStatus.ACTIVE,
                 timestamp,
-                timestamp);
+                timestamp,
+                null);
     }
 
     public Account update(
@@ -62,7 +64,8 @@ public record Account(
                 baseCurrency,
                 status,
                 createdAt,
-                now.truncatedTo(ChronoUnit.MICROS));
+                now.truncatedTo(ChronoUnit.MICROS),
+                deletedAt);
     }
 
     public Account deactivate(Instant now) {
@@ -77,7 +80,8 @@ public record Account(
                 baseCurrency,
                 AccountStatus.INACTIVE,
                 createdAt,
-                now.truncatedTo(ChronoUnit.MICROS));
+                now.truncatedTo(ChronoUnit.MICROS),
+                deletedAt);
     }
 
     public Account activate(Instant now) {
@@ -92,7 +96,44 @@ public record Account(
                 baseCurrency,
                 AccountStatus.ACTIVE,
                 createdAt,
-                now.truncatedTo(ChronoUnit.MICROS));
+                now.truncatedTo(ChronoUnit.MICROS),
+                deletedAt);
+    }
+
+    public Account delete(Instant now) {
+        Instant timestamp = now.truncatedTo(ChronoUnit.MICROS);
+        return new Account(
+                id,
+                name,
+                broker,
+                accountNumberLast4,
+                baseCurrency,
+                status,
+                createdAt,
+                timestamp,
+                timestamp);
+    }
+
+    public Account restore(
+            String rawName,
+            String rawBroker,
+            String rawLast4,
+            Instant now) {
+        AccountFields fields = validate(rawName, rawBroker, rawLast4);
+        return new Account(
+                id,
+                fields.name(),
+                fields.broker(),
+                fields.last4(),
+                baseCurrency,
+                AccountStatus.ACTIVE,
+                createdAt,
+                now.truncatedTo(ChronoUnit.MICROS),
+                null);
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     private static AccountFields validate(

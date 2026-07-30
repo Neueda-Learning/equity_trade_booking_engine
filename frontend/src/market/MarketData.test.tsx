@@ -217,6 +217,45 @@ describe('Market Data', () => {
     ).toBeInTheDocument()
   })
 
+  it('removes an unavailable searched ticker and its saved history', async () => {
+    const fetchMock = routedFetch({
+      status: providerStatus('FINNHUB'),
+      quotes: [],
+      unavailableTickers: ['ZZZZ'],
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const firstRender = render(<MarketData />)
+    await screen.findByText('No open positions to quote.')
+
+    fireEvent.change(screen.getByLabelText('Ticker search'), {
+      target: { value: 'zzzz' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(await screen.findByText('ZZZZ')).toBeInTheDocument()
+    expect(
+      window.localStorage.getItem('equity-market-searched-tickers'),
+    ).toBe('["ZZZZ"]')
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Remove ZZZZ from searched quotes',
+      }),
+    )
+    expect(screen.queryByText('ZZZZ')).not.toBeInTheDocument()
+    expect(
+      window.localStorage.getItem('equity-market-searched-tickers'),
+    ).toBeNull()
+
+    firstRender.unmount()
+    render(<MarketData />)
+    await screen.findByText('No open positions to quote.')
+    expect(
+      fetchMock.mock.calls.filter(
+        ([url]) => String(url) === '/api/market-data/quotes/ZZZZ',
+      ),
+    ).toHaveLength(1)
+  })
+
   it('enables demo outage, shows stale data, then restores live provider', async () => {
     let outage = false
     const fetchMock = routedFetch({

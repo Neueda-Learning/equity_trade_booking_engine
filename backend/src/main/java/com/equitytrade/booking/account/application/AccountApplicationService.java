@@ -31,7 +31,21 @@ public class AccountApplicationService {
                     command.broker(),
                     command.accountNumberLast4(),
                     clock.instant());
-            ensureUniqueName(account.name(), null);
+            var existing = accountRepository.findByNameForUpdate(
+                    account.name());
+            if (existing.isPresent()) {
+                Account stored = existing.orElseThrow();
+                if (!stored.isDeleted()) {
+                    throw new AccountConflictException(
+                            "name", "already exists");
+                }
+                Account restored = stored.restore(
+                        command.name(),
+                        command.broker(),
+                        command.accountNumberLast4(),
+                        clock.instant());
+                return AccountView.from(accountRepository.save(restored));
+            }
             return AccountView.from(accountRepository.save(account));
         } catch (AccountValidationException exception) {
             throw AccountUseCaseValidationException.from(exception);
@@ -83,6 +97,13 @@ public class AccountApplicationService {
             return AccountView.from(account);
         }
         return AccountView.from(accountRepository.save(activated));
+    }
+
+    @Transactional
+    public void delete(UUID id) {
+        Account account = accountRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new AccountNotFoundException(id));
+        accountRepository.save(account.delete(clock.instant()));
     }
 
     private Account find(UUID id) {

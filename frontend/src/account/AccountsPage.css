@@ -71,9 +71,15 @@
 }
 
 .form-actions .button-secondary,
-.account-actions button:last-child {
+.account-actions .button-secondary {
   color: #334155;
   background: #e2e8f0;
+}
+
+.account-actions .button-danger {
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  background: #fee2e2;
 }
 
 .form-actions button:disabled,

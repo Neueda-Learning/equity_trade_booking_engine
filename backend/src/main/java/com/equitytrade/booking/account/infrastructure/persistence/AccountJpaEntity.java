@@ -40,6 +40,9 @@ class AccountJpaEntity {
     @Column(name = "updated_at", nullable = false, columnDefinition = "datetime(6)")
     private LocalDateTime updatedAt;
 
+    @Column(name = "deleted_at", columnDefinition = "datetime(6)")
+    private LocalDateTime deletedAt;
+
     protected AccountJpaEntity() {
     }
 
@@ -51,7 +54,8 @@ class AccountJpaEntity {
             String baseCurrency,
             AccountStatus status,
             LocalDateTime createdAt,
-            LocalDateTime updatedAt) {
+            LocalDateTime updatedAt,
+            LocalDateTime deletedAt) {
         this.id = id;
         this.name = name;
         this.broker = broker;
@@ -60,6 +64,7 @@ class AccountJpaEntity {
         this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.deletedAt = deletedAt;
     }
 
     String getId() {
@@ -92,5 +97,9 @@ class AccountJpaEntity {
 
     LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    LocalDateTime getDeletedAt() {
+        return deletedAt;
     }
 }

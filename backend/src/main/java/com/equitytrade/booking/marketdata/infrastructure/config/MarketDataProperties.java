@@ -11,6 +11,7 @@ public class MarketDataProperties {
     private String provider = "mock";
     private Duration freshTtl = Duration.ofSeconds(60);
     private Duration retentionTtl = Duration.ofHours(24);
+    private Duration backgroundRefreshInterval = Duration.ofSeconds(10);
     private Duration mockWindow = Duration.ofSeconds(60);
     private URI finnhubBaseUrl = URI.create("https://finnhub.io/api/v1");
     private String finnhubApiKey = "";
@@ -41,6 +42,15 @@ public class MarketDataProperties {
 
     public void setRetentionTtl(Duration retentionTtl) {
         this.retentionTtl = retentionTtl;
+    }
+
+    public Duration getBackgroundRefreshInterval() {
+        return backgroundRefreshInterval;
+    }
+
+    public void setBackgroundRefreshInterval(
+            Duration backgroundRefreshInterval) {
+        this.backgroundRefreshInterval = backgroundRefreshInterval;
     }
 
     public Duration getMockWindow() {

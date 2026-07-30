@@ -2,6 +2,8 @@ package com.equitytrade.booking.marketdata.infrastructure.config;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MarketDataConfigurationTests {
@@ -28,5 +30,16 @@ class MarketDataConfigurationTests {
                 MarketDataConfiguration.validate(properties))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("must be 1 or 2");
+    }
+
+    @Test
+    void backgroundRefreshIntervalMustBePositive() {
+        MarketDataProperties properties = new MarketDataProperties();
+        properties.setBackgroundRefreshInterval(Duration.ZERO);
+
+        assertThatThrownBy(() ->
+                MarketDataConfiguration.validate(properties))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("refresh interval");
     }
 }

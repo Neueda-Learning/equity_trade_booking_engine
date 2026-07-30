@@ -30,7 +30,7 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
 
     @Override
     public Optional<Trade> findById(UUID id) {
-        return repository.findById(id.toString()).map(this::toDomain);
+        return repository.findVisibleById(id.toString()).map(this::toDomain);
     }
 
     @Override
@@ -50,7 +50,7 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
     @Override
     public List<Trade> findAllBooked() {
         return repository
-                .findByStatusOrderByExecutedAtAscCreatedAtAscIdAsc(
+                .findVisibleByStatus(
                         TradeStatus.BOOKED)
                 .stream()
                 .map(this::toDomain)
@@ -64,7 +64,7 @@ public class JpaTradeRepositoryAdapter implements TradeRepository {
                 .and(Sort.by(Sort.Direction.DESC, "id"));
         PageRequest pageRequest = PageRequest.of(page, size, sort);
         Page<TradeJpaEntity> result = accountId == null
-                ? repository.findAll(pageRequest)
+                ? repository.findAllVisible(pageRequest)
                 : repository.findByAccountId(accountId.toString(), pageRequest);
         return new TradePage(
                 result.getContent().stream().map(this::toDomain).toList(),

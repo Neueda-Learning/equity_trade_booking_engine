@@ -39,7 +39,9 @@ describe('Accounts page', () => {
     await waitFor(() => expect(screen.getByText('Taxable')).toBeInTheDocument())
     const taxableCard = screen.getByText('Taxable').closest('article')!
     fireEvent.click(
-      taxableCard.querySelector<HTMLButtonElement>('button:last-child')!,
+      Array.from(taxableCard.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Deactivate',
+      )!,
     )
     expect(await screen.findByText('Taxable deactivated.')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
@@ -58,6 +60,33 @@ describe('Accounts page', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/accounts/taxable/activate',
       expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('hides an account after confirming retained-history deletion', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response([primary, taxable]))
+      .mockResolvedValueOnce(response(undefined, true, 204))
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('confirm', vi.fn(() => true))
+
+    render(<AccountsPage />)
+    const taxableCard = (await screen.findByText('Taxable')).closest('article')!
+    fireEvent.click(
+      Array.from(taxableCard.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Delete',
+      )!,
+    )
+
+    expect(await screen.findByText('Taxable deleted.')).toBeInTheDocument()
+    expect(screen.queryByText('Taxable')).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/accounts/taxable',
+      expect.objectContaining({ method: 'DELETE' }),
+    )
+    expect(vi.mocked(confirm)).toHaveBeenCalledWith(
+      'Delete Taxable from the system? Its trade and valuation history will be retained and restored if you create an account with the same name later.',
     )
   })
 
