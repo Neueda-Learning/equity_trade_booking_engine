@@ -23,8 +23,11 @@ import com.equitytrade.booking.marketdata.infrastructure.provider.ObservedMarket
 import com.equitytrade.booking.marketdata.infrastructure.redis.RedisMarketDataCache;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Fallback;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Clock;
@@ -59,7 +62,30 @@ public class MarketDataConfiguration {
             MarketDataProperties properties,
             MarketDataProviderRuntimeState runtimeState) {
         validate(properties);
-        MarketDataProvider provider = switch (provider(properties)) {
+        return new ObservedMarketDataProvider(
+                createProvider(clock, objectMapper, properties),
+                runtimeState);
+    }
+
+    @Bean("backgroundMarketDataProvider")
+    @Fallback
+    MarketDataProvider backgroundMarketDataProvider(
+            Clock clock,
+            ObjectMapper objectMapper,
+            MarketDataProperties properties,
+            MarketDataProviderRuntimeState runtimeState) {
+        validate(properties);
+        return new ObservedMarketDataProvider(
+                createProvider(clock, objectMapper, properties),
+                runtimeState,
+                false);
+    }
+
+    private MarketDataProvider createProvider(
+            Clock clock,
+            ObjectMapper objectMapper,
+            MarketDataProperties properties) {
+        return switch (provider(properties)) {
             case "MOCK" -> new DeterministicMockMarketDataProvider(
                     clock,
                     properties.getMockWindow());
@@ -76,7 +102,6 @@ public class MarketDataConfiguration {
             default -> throw new IllegalStateException(
                     "MARKET_DATA_PROVIDER must be mock or finnhub");
         };
-        return new ObservedMarketDataProvider(provider, runtimeState);
     }
 
     @Bean
@@ -140,6 +165,7 @@ public class MarketDataConfiguration {
     }
 
     @Bean
+    @Primary
     MarketDataApplicationService marketDataApplicationService(
             MarketDataProvider provider,
             MarketDataCache cache,
@@ -155,6 +181,26 @@ public class MarketDataConfiguration {
             throw new IllegalStateException(
                     "Market data retention TTL must exceed fresh TTL");
         }
+        return new MarketDataApplicationService(
+                provider,
+                cache,
+                positionTickerSource,
+                clock,
+                properties.getFreshTtl(),
+                providerState,
+                snapshotRepository);
+    }
+
+    @Bean("backgroundMarketDataApplicationService")
+    MarketDataApplicationService backgroundMarketDataApplicationService(
+            @Qualifier("backgroundMarketDataProvider")
+                    MarketDataProvider provider,
+            MarketDataCache cache,
+            PositionTickerSource positionTickerSource,
+            Clock clock,
+            MarketDataProperties properties,
+            MarketDataProviderState providerState,
+            MarketQuoteSnapshotRepository snapshotRepository) {
         return new MarketDataApplicationService(
                 provider,
                 cache,
@@ -202,9 +248,12 @@ public class MarketDataConfiguration {
         if (properties.getConnectTimeout().isNegative()
                 || properties.getConnectTimeout().isZero()
                 || properties.getReadTimeout().isNegative()
-                || properties.getReadTimeout().isZero()) {
+                || properties.getReadTimeout().isZero()
+                || properties.getBackgroundRefreshInterval().isNegative()
+                || properties.getBackgroundRefreshInterval().isZero()) {
             throw new IllegalStateException(
-                    "Finnhub timeouts must be positive");
+                    "Finnhub timeouts and background refresh interval "
+                            + "must be positive");
         }
         if (properties.getMaxAttempts() < 1
                 || properties.getMaxAttempts() > 2) {

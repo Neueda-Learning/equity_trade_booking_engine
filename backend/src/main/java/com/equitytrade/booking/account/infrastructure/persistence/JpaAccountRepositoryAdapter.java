@@ -25,7 +25,8 @@ public class JpaAccountRepositoryAdapter implements AccountRepository {
 
     @Override
     public Optional<Account> findById(UUID id) {
-        return repository.findById(id.toString()).map(this::toDomain);
+        return repository.findByIdAndDeletedAtIsNull(id.toString())
+                .map(this::toDomain);
     }
 
     @Override
@@ -34,8 +35,13 @@ public class JpaAccountRepositoryAdapter implements AccountRepository {
     }
 
     @Override
+    public Optional<Account> findByNameForUpdate(String name) {
+        return repository.findByNameForUpdate(name).map(this::toDomain);
+    }
+
+    @Override
     public List<Account> findAll() {
-        return repository.findAllByOrderByCreatedAtAsc().stream()
+        return repository.findAllByDeletedAtIsNullOrderByCreatedAtAsc().stream()
                 .map(this::toDomain)
                 .toList();
     }
@@ -56,7 +62,12 @@ public class JpaAccountRepositoryAdapter implements AccountRepository {
                 account.baseCurrency(),
                 account.status(),
                 account.createdAt().atOffset(ZoneOffset.UTC).toLocalDateTime(),
-                account.updatedAt().atOffset(ZoneOffset.UTC).toLocalDateTime());
+                account.updatedAt().atOffset(ZoneOffset.UTC).toLocalDateTime(),
+                account.deletedAt() == null
+                        ? null
+                        : account.deletedAt()
+                                .atOffset(ZoneOffset.UTC)
+                                .toLocalDateTime());
     }
 
     private Account toDomain(AccountJpaEntity entity) {
@@ -68,6 +79,9 @@ public class JpaAccountRepositoryAdapter implements AccountRepository {
                 entity.getBaseCurrency(),
                 entity.getStatus(),
                 entity.getCreatedAt().toInstant(ZoneOffset.UTC),
-                entity.getUpdatedAt().toInstant(ZoneOffset.UTC));
+                entity.getUpdatedAt().toInstant(ZoneOffset.UTC),
+                entity.getDeletedAt() == null
+                        ? null
+                        : entity.getDeletedAt().toInstant(ZoneOffset.UTC));
     }
 }

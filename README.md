@@ -181,6 +181,8 @@ Useful configuration:
 | `MARKET_DATA_MAX_ATTEMPTS` | `2` | Total attempts, constrained to 1 or 2 |
 | `MARKET_DATA_FRESH_TTL` | `60s` | Redis fresh period |
 | `MARKET_DATA_RETENTION_TTL` | `24h` | Retained stale-fallback period |
+| `MARKET_DATA_BACKGROUND_REFRESH_ENABLED` | `false` | Opt in to refreshing existing Redis tickers in the background when Finnhub is configured |
+| `MARKET_DATA_BACKGROUND_REFRESH_INTERVAL` | `10s` | Delay between completed Redis refresh cycles |
 | `MARKET_DATA_DEMO_CONTROLS_ENABLED` | `false` | Opt-in Demo outage API |
 
 The application default for Demo controls remains `false`. Local Compose
@@ -195,6 +197,14 @@ Timeouts, connection failures, and 5xx responses have at most one retry.
 falls back to Mock automatically. If the provider fails and a retained Redis
 quote exists, the response is `cached=true` and `stale=true`; otherwise the API
 returns safe Problem Details.
+
+When explicitly enabled with Finnhub configured, the background refresher scans
+existing `market:quote:*` Redis keys every 10 seconds. Successful responses
+overwrite the latest JSON value and renew its retention TTL; failures leave the
+retained quote unchanged. The Demo outage switch affects foreground API calls
+only, so the background refresher continues feeding Redis while the UI
+demonstrates cached fallback. The refresher does not create timestamped Redis
+keys.
 
 The dashboard history defaults to `DASHBOARD_HISTORY_SOURCE=local`, so runtime
 market data uses only the Finnhub `/quote` endpoint and never calls

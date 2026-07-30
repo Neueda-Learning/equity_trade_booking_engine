@@ -134,6 +134,12 @@
   background: #d1fae5;
 }
 
+.quote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .quote-unavailable-detail {
   color: #991b1b;
   background: #fef2f2;

@@ -38,6 +38,8 @@ market-data:
   provider: ${MARKET_DATA_PROVIDER:mock}
   fresh-ttl: ${MARKET_DATA_FRESH_TTL:60s}
   retention-ttl: ${MARKET_DATA_RETENTION_TTL:24h}
+  background-refresh-enabled: ${MARKET_DATA_BACKGROUND_REFRESH_ENABLED:false}
+  background-refresh-interval: ${MARKET_DATA_BACKGROUND_REFRESH_INTERVAL:10s}
   mock-window: ${MARKET_DATA_MOCK_WINDOW:60s}
   finnhub-base-url: ${FINNHUB_BASE_URL:https://finnhub.io/api/v1}
   finnhub-api-key: ${FINNHUB_API_KEY:}

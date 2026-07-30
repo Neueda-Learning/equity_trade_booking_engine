@@ -4,6 +4,7 @@ import {
   activateAccount,
   createAccount,
   deactivateAccount,
+  deleteAccount,
   getAccounts,
   getPositions,
   updateAccount,
@@ -31,6 +32,7 @@ function AccountsPage() {
   const [positionsLoading, setPositionsLoading] = useState(false)
   const [positionsError, setPositionsError] = useState('')
   const [changingStatusId, setChangingStatusId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   async function load(signal?: AbortSignal) {
     setLoading(true)
@@ -148,6 +150,38 @@ function AccountsPage() {
     }
   }
 
+  async function removeAccount(account: Account) {
+    if (!window.confirm(t('accounts.deleteConfirm', {
+      name: account.name,
+    }))) {
+      return
+    }
+    setDeletingId(account.id)
+    setMessage('')
+    setServerError('')
+    try {
+      await deleteAccount(account.id)
+      setAccounts((current) =>
+        current.filter((item) => item.id !== account.id),
+      )
+      if (selectedAccountId === account.id) {
+        setSelectedAccountId(null)
+        setPositions([])
+        setPositionsError('')
+      }
+      if (editingId === account.id) {
+        setEditingId(null)
+        setForm(emptyForm)
+        setFieldErrors({})
+      }
+      setMessage(t('accounts.deleted', { name: account.name }))
+    } catch {
+      setServerError(t('accounts.deleteFailed'))
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <section className="accounts-layout" aria-labelledby="accounts-heading">
       <div className="panel">
@@ -252,8 +286,12 @@ function AccountsPage() {
                   </button>
                   <button
                     type="button"
+                    className="button-secondary"
                     onClick={() => void changeStatus(account)}
-                    disabled={changingStatusId === account.id}
+                    disabled={
+                      changingStatusId === account.id
+                      || deletingId === account.id
+                    }
                   >
                     {changingStatusId === account.id
                       ? t(
@@ -266,6 +304,19 @@ function AccountsPage() {
                           ? 'accounts.activate'
                           : 'accounts.deactivate',
                       )}
+                  </button>
+                  <button
+                    type="button"
+                    className="button-danger"
+                    onClick={() => void removeAccount(account)}
+                    disabled={
+                      deletingId === account.id
+                      || changingStatusId === account.id
+                    }
+                  >
+                    {deletingId === account.id
+                      ? t('accounts.deleting')
+                      : t('common.delete')}
                   </button>
                 </div>
               </article>

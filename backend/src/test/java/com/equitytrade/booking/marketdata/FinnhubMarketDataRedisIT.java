@@ -1,5 +1,6 @@
 package com.equitytrade.booking.marketdata;
 
+import com.equitytrade.booking.marketdata.domain.MarketDataCache;
 import com.equitytrade.booking.marketdata.infrastructure.redis.RedisMarketDataCache;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -87,6 +88,9 @@ class FinnhubMarketDataRedisIT {
         registry.add("market-data.fresh-ttl", () -> "60s");
         registry.add("market-data.retention-ttl", () -> "24h");
         registry.add(
+                "market-data.background-refresh-enabled",
+                () -> "false");
+        registry.add(
                 "dashboard.snapshots.scheduling-enabled",
                 () -> "false");
     }
@@ -99,6 +103,9 @@ class FinnhubMarketDataRedisIT {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private MarketDataCache marketDataCache;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -142,6 +149,7 @@ class FinnhubMarketDataRedisIT {
         JsonNode json = objectMapper.readTree(cached);
         assertThat(json.path("source").asText()).isEqualTo("FINNHUB");
         assertThat(json.path("mock").asBoolean()).isFalse();
+        assertThat(marketDataCache.tickers()).containsExactly("AAPL");
     }
 
     @Test

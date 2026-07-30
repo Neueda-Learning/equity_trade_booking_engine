@@ -69,6 +69,26 @@ class ObservedMarketDataProviderTests {
         assertThat(provider.fetch("AAPL")).isEqualTo(quote("AAPL"));
     }
 
+    @Test
+    void backgroundProviderBypassesForegroundDemoOutage() {
+        AtomicInteger calls = new AtomicInteger();
+        MarketDataProviderRuntimeState state = state(true);
+        state.enableOutage();
+        ObservedMarketDataProvider provider =
+                new ObservedMarketDataProvider(
+                        ticker -> {
+                            calls.incrementAndGet();
+                            return quote(ticker);
+                        },
+                        state,
+                        false);
+
+        assertThat(provider.fetch("AAPL")).isEqualTo(quote("AAPL"));
+        assertThat(calls).hasValue(1);
+        assertThat(state.status().demoOutageEnabled()).isTrue();
+        assertThat(state.status().lastSuccessAt()).isEqualTo(NOW);
+    }
+
     private MarketDataProviderRuntimeState state(boolean demoControls) {
         return new MarketDataProviderRuntimeState(
                 "FINNHUB",

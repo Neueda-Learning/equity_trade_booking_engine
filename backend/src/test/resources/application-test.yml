@@ -24,6 +24,9 @@ management:
     redis:
       enabled: false
 
+market-data:
+  background-refresh-enabled: false
+
 dashboard:
   snapshots:
     scheduling-enabled: false

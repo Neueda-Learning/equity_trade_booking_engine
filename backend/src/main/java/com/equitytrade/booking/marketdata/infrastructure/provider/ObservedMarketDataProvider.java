@@ -9,17 +9,28 @@ public class ObservedMarketDataProvider implements MarketDataProvider {
 
     private final MarketDataProvider delegate;
     private final MarketDataProviderRuntimeState state;
+    private final boolean honorDemoOutage;
 
     public ObservedMarketDataProvider(
             MarketDataProvider delegate,
             MarketDataProviderRuntimeState state) {
+        this(delegate, state, true);
+    }
+
+    public ObservedMarketDataProvider(
+            MarketDataProvider delegate,
+            MarketDataProviderRuntimeState state,
+            boolean honorDemoOutage) {
         this.delegate = delegate;
         this.state = state;
+        this.honorDemoOutage = honorDemoOutage;
     }
 
     @Override
     public MarketQuote fetch(String ticker) {
-        if (state.available() && state.outageEnabled()) {
+        if (honorDemoOutage
+                && state.available()
+                && state.outageEnabled()) {
             MarketDataProviderException outage =
                     new MarketDataProviderException(
                             MarketDataFailureCategory.DEMO_OUTAGE,

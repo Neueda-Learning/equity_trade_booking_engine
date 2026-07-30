@@ -16,6 +16,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -101,6 +102,71 @@ class AccountApiIntegrationTests {
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.errors.name").value("already exists"));
+    }
+
+    @Test
+    void hidesAnAccountWithHistoryAndRestoresItWhenRecreatedByName()
+            throws Exception {
+        MvcResult tradedCreated = mockMvc.perform(post("/api/accounts")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(accountRequest(
+                                "Trading History", "Broker", "2222")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String tradedId = objectMapper.readTree(
+                tradedCreated.getResponse().getContentAsString())
+                .path("id")
+                .asText();
+        mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(tradedId)))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/dashboard/refresh")
+                        .param("accountId", tradedId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/accounts/{id}", tradedId))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/accounts/{id}", tradedId))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/accounts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$[?(@.id == '" + tradedId + "')]").isEmpty());
+        mockMvc.perform(get("/api/trades")
+                        .param("accountId", tradedId))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/trades"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+        mockMvc.perform(get("/api/positions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/dashboard/history")
+                        .param("accountId", tradedId)
+                        .param("range", "1D"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(post("/api/accounts")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(accountRequest(
+                                "Trading History",
+                                "Restored Broker",
+                                "3333")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(tradedId))
+                .andExpect(jsonPath("$.broker").value("Restored Broker"))
+                .andExpect(jsonPath("$.accountNumberLast4").value("3333"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        mockMvc.perform(get("/api/trades")
+                        .param("accountId", tradedId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1));
+        mockMvc.perform(get("/api/dashboard/history")
+                        .param("accountId", tradedId)
+                        .param("range", "1D"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].accountId").value(tradedId));
     }
 
     @Test
