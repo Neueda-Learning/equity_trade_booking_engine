@@ -22,6 +22,14 @@ import {
 import { useI18n } from '../i18n'
 import './MarketData.css'
 
+const SEARCHED_TICKERS_KEY = 'equity-market-searched-tickers'
+const TICKER_PATTERN = /^[A-Z][A-Z0-9.-]{0,9}$/
+
+interface UnavailableQuote {
+  ticker: string
+  message: string
+}
+
 function MarketData() {
   const { t } = useI18n()
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -35,7 +43,9 @@ function MarketData() {
   const [unavailable, setUnavailable] = useState(false)
   const [search, setSearch] = useState('')
   const [searching, setSearching] = useState(false)
-  const [searchResult, setSearchResult] = useState<MarketQuote | null>(null)
+  const [searchedQuotes, setSearchedQuotes] = useState<MarketQuote[]>([])
+  const [searchFailures, setSearchFailures] =
+    useState<Record<string, string>>({})
   const [refreshingTicker, setRefreshingTicker] = useState<string | null>(null)
   const [refreshingAll, setRefreshingAll] = useState(false)
   const [refreshAllError, setRefreshAllError] = useState('')
@@ -44,16 +54,10 @@ function MarketData() {
 
   const handleError = useCallback((reason: unknown) => {
     if (isAbort(reason)) return
-    if (reason instanceof ApiProblemError && reason.problem.status === 503) {
-      setUnavailable(true)
-      setError(providerError(reason, t))
-      return
-    }
-    setError(
-      reason instanceof ApiProblemError
-        ? reason.problem.detail ?? reason.message
-        : t('market.loadFailed'),
+    setUnavailable(
+      reason instanceof ApiProblemError && reason.problem.status === 503,
     )
+    setError(marketError(reason, t))
   }, [t])
 
   useEffect(() => {
@@ -92,21 +96,53 @@ function MarketData() {
     return () => controller.abort()
   }, [accountId, handleError])
 
+  useEffect(() => {
+    const tickers = loadSearchedTickers()
+    if (tickers.length === 0) return
+    const controller = new AbortController()
+    void Promise.allSettled(
+      tickers.map((ticker) => getMarketQuote(ticker, controller.signal)),
+    ).then((results) => {
+      if (controller.signal.aborted) return
+      const loaded: MarketQuote[] = []
+      const failures: Record<string, string> = {}
+      results.forEach((result, index) => {
+        const ticker = tickers[index]
+        if (result.status === 'fulfilled') {
+          loaded.push(result.value)
+        } else if (!isAbort(result.reason)) {
+          failures[ticker] = marketError(result.reason, t)
+        }
+      })
+      setSearchedQuotes(loaded)
+      setSearchFailures(failures)
+    })
+    return () => controller.abort()
+  }, [t])
+
   async function reloadProviderStatus() {
     setProviderStatus(await getMarketDataProviderStatus())
   }
 
   async function submitSearch(event: FormEvent) {
     event.preventDefault()
+    const ticker = search.trim().toUpperCase()
     setSearching(true)
-    setError('')
-    setUnavailable(false)
-    setSearchResult(null)
+    if (TICKER_PATTERN.test(ticker)) {
+      rememberSearchedTicker(ticker)
+    }
     try {
-      setSearchResult(await getMarketQuote(search))
+      const quote = await getMarketQuote(ticker)
+      setSearchedQuotes((current) => upsertQuote(current, quote))
+      setSearchFailures((current) => withoutKey(current, ticker))
       await reloadProviderStatus()
     } catch (reason) {
-      handleError(reason)
+      if (!isAbort(reason)) {
+        setSearchFailures((current) => ({
+          ...current,
+          [ticker]: marketError(reason, t),
+        }))
+      }
     } finally {
       setSearching(false)
     }
@@ -125,9 +161,14 @@ function MarketData() {
           item.ticker === refreshed.ticker ? refreshed : item,
         ),
       )
-      if (searchResult?.ticker === refreshed.ticker) {
-        setSearchResult(refreshed)
-      }
+      setSearchedQuotes((current) =>
+        current.some((item) => item.ticker === refreshed.ticker)
+          ? upsertQuote(current, refreshed)
+          : current,
+      )
+      setSearchFailures((current) =>
+        withoutKey(current, refreshed.ticker),
+      )
       setMessage(
         t('market.refreshed', {
           ticker: refreshed.ticker,
@@ -136,7 +177,17 @@ function MarketData() {
       )
       await reloadProviderStatus()
     } catch (reason) {
-      handleError(reason)
+      const searched =
+        searchedQuotes.some((item) => item.ticker === quote.ticker)
+        || searchFailures[quote.ticker] !== undefined
+      if (searched && !isAbort(reason)) {
+        setSearchFailures((current) => ({
+          ...current,
+          [quote.ticker]: marketError(reason, t),
+        }))
+      } else {
+        handleError(reason)
+      }
       await reloadProviderStatus().catch(() => undefined)
     } finally {
       setRefreshingTicker(null)
@@ -162,8 +213,10 @@ function MarketData() {
       setQuotes((current) =>
         current.map((quote) => refreshedByTicker.get(quote.ticker) ?? quote),
       )
-      setSearchResult((current) =>
-        current ? refreshedByTicker.get(current.ticker) ?? current : current,
+      setSearchedQuotes((current) =>
+        current.map(
+          (quote) => refreshedByTicker.get(quote.ticker) ?? quote,
+        ),
       )
 
       const failedCount = results.length - refreshedQuotes.length
@@ -187,18 +240,88 @@ function MarketData() {
     }
   }
 
+  async function refreshVisibleQuotes() {
+    const searchedTickers = new Set([
+      ...searchedQuotes.map((quote) => quote.ticker),
+      ...Object.keys(searchFailures),
+    ])
+    const tickers = Array.from(
+      new Set([
+        ...quotes.map((quote) => quote.ticker),
+        ...searchedTickers,
+      ]),
+    )
+    const results = await Promise.allSettled(
+      tickers.map((ticker) => refreshMarketQuote(ticker)),
+    )
+    const refreshedByTicker = new Map<string, MarketQuote>()
+    let firstFailure: unknown
+
+    const failedSearches: Record<string, string> = {}
+    results.forEach((result, index) => {
+      const ticker = tickers[index]
+      if (result.status === 'fulfilled') {
+        refreshedByTicker.set(result.value.ticker, result.value)
+      } else if (searchedTickers.has(ticker)) {
+        failedSearches[ticker] = marketError(result.reason, t)
+      } else if (firstFailure === undefined) {
+        firstFailure = result.reason
+      }
+    })
+
+    if (refreshedByTicker.size > 0) {
+      setQuotes((current) =>
+        current.map(
+          (quote) => refreshedByTicker.get(quote.ticker) ?? quote,
+        ),
+      )
+      setSearchedQuotes((current) =>
+        Array.from(searchedTickers).reduce(
+          (updated, ticker) => {
+            const refreshed = refreshedByTicker.get(ticker)
+            return refreshed ? upsertQuote(updated, refreshed) : updated
+          },
+          current,
+        ),
+      )
+    }
+    setSearchFailures((current) => {
+      let updated = current
+      searchedTickers.forEach((ticker) => {
+        if (refreshedByTicker.has(ticker)) {
+          updated = withoutKey(updated, ticker)
+        }
+      })
+      return { ...updated, ...failedSearches }
+    })
+    if (firstFailure !== undefined) {
+      handleError(firstFailure)
+    }
+    return refreshedByTicker.size
+  }
+
   async function setOutage(enabled: boolean) {
     setDemoChanging(true)
     setError('')
+    setUnavailable(false)
     setMessage('')
     try {
       const status = enabled
         ? await enableDemoMarketDataOutage()
         : await disableDemoMarketDataOutage()
       setDemoOutage(status)
+      const refreshedCount = await refreshVisibleQuotes()
       await reloadProviderStatus()
       setMessage(
-        t(status.enabled ? 'market.outageEnabled' : 'market.outageDisabled'),
+        t(
+          status.enabled && refreshedCount > 0
+            ? 'market.outageFallbackShown'
+            : status.enabled
+              ? 'market.outageEnabled'
+              : refreshedCount > 0
+                ? 'market.outageRestored'
+                : 'market.outageDisabled',
+        ),
       )
     } catch (reason) {
       handleError(reason)
@@ -206,6 +329,10 @@ function MarketData() {
       setDemoChanging(false)
     }
   }
+
+  const unavailableSearches = Object.entries(searchFailures).map(
+    ([ticker, failure]) => ({ ticker, message: failure }),
+  )
 
   return (
     <section aria-labelledby="market-heading">
@@ -225,7 +352,6 @@ function MarketData() {
               setRefreshAllError('')
               setUnavailable(false)
               setAccountId(event.target.value)
-              setSearchResult(null)
             }}
           >
             <option value="">{t('common.allAccounts')}</option>
@@ -279,28 +405,32 @@ function MarketData() {
           {error}
         </p>
       )}
-      {searchResult && (
+      {(searchedQuotes.length > 0 || unavailableSearches.length > 0) && (
         <div className="panel market-search-result">
           <h3>{t('market.searchResult')}</h3>
           <QuoteTable
-            quotes={[searchResult]}
+            quotes={searchedQuotes}
+            unavailableQuotes={unavailableSearches}
             refreshingTicker={refreshingTicker}
             refreshingAll={refreshingAll}
+            controlsLocked={demoChanging}
             onRefresh={refresh}
           />
         </div>
       )}
-      {!loading && !error && !unavailable && quotes.length === 0 && (
+      {!loading && !error && quotes.length === 0 && (
         <p className="table-state">{t('market.noPositions')}</p>
       )}
-      {!loading && !error && !unavailable && quotes.length > 0 && (
+      {!loading && quotes.length > 0 && (
         <div className="panel">
           <div className="market-quotes-heading">
             <h3>{t('market.positionQuotes')}</h3>
             <button
               type="button"
               className="market-refresh-all"
-              disabled={refreshingAll || refreshingTicker !== null}
+              disabled={
+                demoChanging || refreshingAll || refreshingTicker !== null
+              }
               onClick={() => void refreshAll()}
             >
               {refreshingAll
@@ -312,6 +442,7 @@ function MarketData() {
             quotes={quotes}
             refreshingTicker={refreshingTicker}
             refreshingAll={refreshingAll}
+            controlsLocked={demoChanging}
             onRefresh={refresh}
           />
         </div>
@@ -403,13 +534,17 @@ function DemoControls({
 
 function QuoteTable({
   quotes,
+  unavailableQuotes = [],
   refreshingTicker,
   refreshingAll,
+  controlsLocked,
   onRefresh,
 }: {
   quotes: MarketQuote[]
+  unavailableQuotes?: UnavailableQuote[]
   refreshingTicker: string | null
   refreshingAll: boolean
+  controlsLocked: boolean
   onRefresh: (quote: MarketQuote) => Promise<void>
 }) {
   const { locale, t } = useI18n()
@@ -461,7 +596,11 @@ function QuoteTable({
                 <button
                   type="button"
                   className="button-secondary"
-                  disabled={refreshingAll || refreshingTicker === quote.ticker}
+                  disabled={
+                    controlsLocked
+                    || refreshingAll
+                    || refreshingTicker === quote.ticker
+                  }
                   onClick={() => void onRefresh(quote)}
                 >
                   {refreshingAll || refreshingTicker === quote.ticker
@@ -469,6 +608,22 @@ function QuoteTable({
                     : t('market.refreshTicker', { ticker: quote.ticker })}
                 </button>
               </td>
+            </tr>
+          ))}
+          {unavailableQuotes.map((quote) => (
+            <tr key={`unavailable-${quote.ticker}`}>
+              <td className="ticker-cell">{quote.ticker}</td>
+              <td className="quote-unavailable-detail" colSpan={6}>
+                {quote.message}
+              </td>
+              <td>
+                <div className="quote-labels">
+                  <span className="label-warning">
+                    {t('common.unavailable')}
+                  </span>
+                </div>
+              </td>
+              <td>—</td>
             </tr>
           ))}
         </tbody>
@@ -492,6 +647,70 @@ function providerError(
     return t('market.demoNoCache')
   }
   return error.problem.detail ?? t('market.currentlyUnavailable')
+}
+
+function marketError(
+  reason: unknown,
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  if (reason instanceof ApiProblemError) {
+    return reason.problem.status === 503
+      ? providerError(reason, t)
+      : reason.problem.detail ?? reason.message
+  }
+  return t('market.loadFailed')
+}
+
+function upsertQuote(
+  quotes: MarketQuote[],
+  quote: MarketQuote,
+) {
+  const existing = quotes.findIndex((item) => item.ticker === quote.ticker)
+  if (existing < 0) return [...quotes, quote]
+  return quotes.map((item, index) => index === existing ? quote : item)
+}
+
+function withoutKey(
+  values: Record<string, string>,
+  key: string,
+) {
+  if (!(key in values)) return values
+  const updated = { ...values }
+  delete updated[key]
+  return updated
+}
+
+function loadSearchedTickers() {
+  try {
+    const stored = window.localStorage.getItem(SEARCHED_TICKERS_KEY)
+    if (!stored) return []
+    const parsed: unknown = JSON.parse(stored)
+    if (!Array.isArray(parsed)) return []
+    return Array.from(
+      new Set(
+        parsed.filter(
+          (ticker): ticker is string =>
+            typeof ticker === 'string' && TICKER_PATTERN.test(ticker),
+        ),
+      ),
+    )
+  } catch {
+    return []
+  }
+}
+
+function rememberSearchedTicker(ticker: string) {
+  try {
+    const tickers = loadSearchedTickers()
+    if (!tickers.includes(ticker)) {
+      window.localStorage.setItem(
+        SEARCHED_TICKERS_KEY,
+        JSON.stringify([...tickers, ticker]),
+      )
+    }
+  } catch {
+    // Search remains usable when browser storage is unavailable.
+  }
 }
 
 function friendlyCategory(category: string) {

@@ -262,7 +262,7 @@ const en = {
   'market.search': 'Search',
   'market.searching': 'Searching…',
   'market.loading': 'Loading market data…',
-  'market.searchResult': 'Search result',
+  'market.searchResult': 'Searched quotes',
   'market.noPositions': 'No open positions to quote.',
   'market.positionQuotes': 'Position quotes',
   'market.providerLoading': 'Loading provider status…',
@@ -281,6 +281,10 @@ const en = {
   'market.restore': 'Restore provider',
   'market.outageEnabled':
     'Demo outage enabled; external provider calls will fail.',
+  'market.outageFallbackShown':
+    'Demo outage enabled. Visible quotes now use the Redis fallback and are marked STALE.',
+  'market.outageRestored':
+    'Demo outage disabled; visible quotes were refreshed from the external provider.',
   'market.outageDisabled':
     'Demo outage disabled; external provider calls are available.',
   'market.previousClose': 'Previous close',
@@ -549,7 +553,7 @@ const zhCN: TranslationValues = {
   'market.search': '搜索',
   'market.searching': '搜索中…',
   'market.loading': '正在加载市场数据…',
-  'market.searchResult': '搜索结果',
+  'market.searchResult': '已搜索报价',
   'market.noPositions': '没有需要报价的持仓。',
   'market.positionQuotes': '持仓报价',
   'market.providerLoading': '正在加载数据源状态…',
@@ -567,6 +571,9 @@ const zhCN: TranslationValues = {
   'market.simulate': '模拟故障',
   'market.restore': '恢复数据源',
   'market.outageEnabled': '演示故障已启用，外部数据源调用将失败。',
+  'market.outageFallbackShown':
+    '演示故障已启用，当前报价已使用 Redis 兜底并标记为过期。',
+  'market.outageRestored': '演示故障已关闭，当前报价已从外部数据源重新刷新。',
   'market.outageDisabled': '演示故障已关闭，外部数据源调用可用。',
   'market.previousClose': '前收盘价',
   'market.change': '涨跌额',
@@ -841,7 +848,7 @@ const ptBR: TranslationValues = {
   'market.search': 'Pesquisar',
   'market.searching': 'Pesquisando…',
   'market.loading': 'Carregando dados de mercado…',
-  'market.searchResult': 'Resultado da pesquisa',
+  'market.searchResult': 'Cotações pesquisadas',
   'market.noPositions': 'Não há posições para cotar.',
   'market.positionQuotes': 'Cotações das posições',
   'market.providerLoading': 'Carregando status do provedor…',
@@ -860,6 +867,10 @@ const ptBR: TranslationValues = {
   'market.restore': 'Restaurar provedor',
   'market.outageEnabled':
     'Falha de demonstração ativada; as chamadas externas irão falhar.',
+  'market.outageFallbackShown':
+    'Falha de demonstração ativada. As cotações visíveis agora usam o fallback do Redis e estão marcadas como desatualizadas.',
+  'market.outageRestored':
+    'Falha de demonstração desativada; as cotações visíveis foram atualizadas pelo provedor externo.',
   'market.outageDisabled':
     'Falha de demonstração desativada; as chamadas externas estão disponíveis.',
   'market.previousClose': 'Fechamento anterior',

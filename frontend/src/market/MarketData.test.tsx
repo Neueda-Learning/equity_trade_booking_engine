@@ -16,7 +16,10 @@ const accounts = [
 ]
 
 describe('Market Data', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+  })
 
   it('shows the MOCK provider without calling it live', async () => {
     vi.stubGlobal(
@@ -154,6 +157,66 @@ describe('Market Data', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps all searched tickers across Market Data remounts', async () => {
+    const fetchMock = routedFetch({
+      status: providerStatus('FINNHUB'),
+      quotes: [],
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const firstRender = render(<MarketData />)
+    await screen.findByText('No open positions to quote.')
+
+    fireEvent.change(screen.getByLabelText('Ticker search'), {
+      target: { value: 'msft' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(await screen.findByText('MSFT')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Ticker search'), {
+      target: { value: 'nvda' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(await screen.findByText('NVDA')).toBeInTheDocument()
+    expect(screen.getByText('MSFT')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Searched quotes' }),
+    ).toBeInTheDocument()
+
+    firstRender.unmount()
+    render(<MarketData />)
+    expect(await screen.findByText('MSFT')).toBeInTheDocument()
+    expect(await screen.findByText('NVDA')).toBeInTheDocument()
+  })
+
+  it('keeps existing tables when one searched ticker is unavailable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch({
+        status: providerStatus('FINNHUB'),
+        quotes: [quote('AAPL')],
+        unavailableTickers: ['ZZZZ'],
+      }),
+    )
+    render(<MarketData />)
+    expect(await screen.findByText('AAPL')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Ticker search'), {
+      target: { value: 'zzzz' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+
+    expect(await screen.findByText('ZZZZ')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Live market data timed out and no cached quote is available.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('AAPL')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Position quotes' }),
+    ).toBeInTheDocument()
+  })
+
   it('enables demo outage, shows stale data, then restores live provider', async () => {
     let outage = false
     const fetchMock = routedFetch({
@@ -172,14 +235,17 @@ describe('Market Data', () => {
     expect(
       await screen.findByText('Provider outage: SIMULATED'),
     ).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh AAPL' }))
     expect(await screen.findByText('STALE')).toBeInTheDocument()
+    expect(screen.getByText('CACHED')).toBeInTheDocument()
     expect(screen.queryByText('LIVE')).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Demo outage enabled. Visible quotes now use the Redis fallback and are marked STALE.',
+      ),
+    ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Restore provider' }))
     expect(await screen.findByText('Provider outage: OFF')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh AAPL' }))
     await waitFor(() => expect(screen.getByText('LIVE')).toBeInTheDocument())
   })
 
@@ -231,6 +297,7 @@ function routedFetch(options: {
   }
   rejectQuotes?: boolean
   refreshFailures?: string[]
+  unavailableTickers?: string[]
   demo?: () => boolean
   setDemo?: (enabled: boolean) => void
 }) {
@@ -276,6 +343,18 @@ function routedFetch(options: {
       }
       if (options.quoteFailure) {
         return response(options.quoteFailure, false, options.quoteFailure.status)
+      }
+      if (options.unavailableTickers?.includes(ticker)) {
+        return response(
+          {
+            status: 503,
+            detail:
+              'The market data provider timed out and no cached quote is available.',
+            errors: { provider: 'provider timeout' },
+          },
+          false,
+          503,
+        )
       }
       return response(
         quote(ticker, {

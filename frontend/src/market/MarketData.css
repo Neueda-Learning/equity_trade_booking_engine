@@ -134,6 +134,11 @@
   background: #d1fae5;
 }
 
+.quote-unavailable-detail {
+  color: #991b1b;
+  background: #fef2f2;
+}
+
 @media (max-width: 700px) {
   .market-heading,
   .market-search,

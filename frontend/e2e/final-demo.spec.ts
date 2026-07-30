@@ -131,12 +131,21 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   })
   await page.getByRole('button', { name: 'Simulate outage' }).click()
   await expect(page.getByText('Provider outage: SIMULATED')).toBeVisible()
-  await page.getByRole('button', { name: `Refresh ${ticker}` }).click()
   const staleQuote = quoteRow(page, ticker)
   await expect(staleQuote).toContainText('STALE')
   await expect(staleQuote).toContainText('CACHED')
   await expect(staleQuote).toContainText('123.46')
   await expect(staleQuote).not.toContainText('LIVE')
+
+  await page.getByLabel('Ticker search').fill('QQQ')
+  await page.getByRole('button', { name: 'Search' }).click()
+  await expect(
+    page.getByText(
+      'Demo outage is enabled and no cached quote is available.',
+    ),
+  ).toBeVisible()
+  await expect(quoteRow(page, 'QQQ')).toContainText('Unavailable')
+  await expect(staleQuote).toContainText('STALE')
 
   await navigate(page, 'Dashboard')
   await accountSelector(page).selectOption({
@@ -150,7 +159,6 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   await navigate(page, 'Market Data')
   await page.getByRole('button', { name: 'Restore provider' }).click()
   await expect(page.getByText('Provider outage: OFF')).toBeVisible()
-  await page.getByRole('button', { name: `Refresh ${ticker}` }).click()
   const restoredQuote = quoteRow(page, ticker)
   await expect(restoredQuote).toContainText('LIVE')
   await expect(restoredQuote).not.toContainText('STALE')
