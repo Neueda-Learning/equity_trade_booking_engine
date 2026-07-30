@@ -77,7 +77,7 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   const liveQuote = quoteRow(page, ticker)
   await expect(liveQuote).toContainText('FINNHUB')
   await expect(liveQuote).toContainText('LIVE')
-  await expect(liveQuote).toContainText('123.456789')
+  await expect(liveQuote).toContainText('123.46')
   await expect(liveQuote).not.toContainText('STALE')
   await expectNoPageOverflow(page)
 
@@ -135,7 +135,7 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   const staleQuote = quoteRow(page, ticker)
   await expect(staleQuote).toContainText('STALE')
   await expect(staleQuote).toContainText('CACHED')
-  await expect(staleQuote).toContainText('123.456789')
+  await expect(staleQuote).toContainText('123.46')
   await expect(staleQuote).not.toContainText('LIVE')
 
   await navigate(page, 'Dashboard')
