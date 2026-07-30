@@ -8,7 +8,7 @@ const taxable = account('taxable', 'Taxable', 'ACTIVE')
 describe('Accounts page', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('creates and deactivates an account', async () => {
+  it('creates, deactivates, and reactivates an account', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(response([primary]))
@@ -18,6 +18,8 @@ describe('Accounts page', () => {
       .mockResolvedValueOnce(
         response([primary, { ...taxable, status: 'INACTIVE' }]),
       )
+      .mockResolvedValueOnce(response(taxable))
+      .mockResolvedValueOnce(response([primary, taxable]))
     vi.stubGlobal('fetch', fetchMock)
 
     render(<AccountsPage />)
@@ -42,6 +44,19 @@ describe('Accounts page', () => {
     expect(await screen.findByText('Taxable deactivated.')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/accounts/taxable/deactivate',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    await waitFor(() =>
+      expect(taxableCard).toHaveTextContent('INACTIVE'),
+    )
+    fireEvent.click(
+      Array.from(taxableCard.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Activate',
+      )!,
+    )
+    expect(await screen.findByText('Taxable activated.')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/accounts/taxable/activate',
       expect.objectContaining({ method: 'POST' }),
     )
   })

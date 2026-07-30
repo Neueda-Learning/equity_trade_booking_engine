@@ -402,11 +402,16 @@ function ValuationChart({
   const spread = domainMax - domainMin
   const plotWidth = width - plot.left - plot.right
   const plotHeight = height - plot.top - plot.bottom
+  const timestamps = items.map((item) => Date.parse(item.capturedAt))
+  const timeMin = Math.min(...timestamps)
+  const timeMax = Math.max(...timestamps)
+  const timeSpread = timeMax - timeMin
+  const xForTimestamp = (timestamp: number) =>
+    timeSpread === 0
+      ? plot.left + plotWidth / 2
+      : plot.left + ((timestamp - timeMin) / timeSpread) * plotWidth
   const point = (value: number, index: number) => {
-    const x =
-      items.length === 1
-        ? plot.left + plotWidth / 2
-        : plot.left + (index * plotWidth) / (items.length - 1)
+    const x = xForTimestamp(timestamps[index])
     const y = plot.top + ((domainMax - value) / spread) * plotHeight
     return { x, y }
   }
@@ -420,7 +425,10 @@ function ValuationChart({
   const yTicks = scale.ticks
     .toReversed()
     .map((value) => ({ value, y: point(value, 0).y }))
-  const xTickIndexes = chartTickIndexes(items.length, 5)
+  const xTicks = chartTimeTicks(timeMin, timeMax, 5).map((timestamp) => ({
+    timestamp,
+    x: xForTimestamp(timestamp),
+  }))
   const zeroY =
     domainMin <= 0 && domainMax >= 0 ? point(0, 0).y : null
   const resolvedIndex = Math.min(
@@ -443,13 +451,15 @@ function ValuationChart({
   const moveCrosshair = (clientX: number, svg: SVGSVGElement) => {
     const rect = svg.getBoundingClientRect()
     const viewBoxX = ((clientX - rect.left) / rect.width) * width
-    const ratio = Math.min(
-      Math.max((viewBoxX - plot.left) / plotWidth, 0),
-      1,
+    const nearestIndex = chartPoints.reduce(
+      (bestIndex, candidate, index) =>
+        Math.abs(candidate.x - viewBoxX)
+          < Math.abs(chartPoints[bestIndex].x - viewBoxX)
+          ? index
+          : bestIndex,
+      0,
     )
-    setActiveIndex(
-      items.length === 1 ? 0 : Math.round(ratio * (items.length - 1)),
-    )
+    setActiveIndex(nearestIndex)
   }
 
   return (
@@ -551,22 +561,22 @@ function ValuationChart({
                 </text>
               </g>
             ))}
-            {xTickIndexes.map((index) => (
-              <g key={items[index].id}>
+            {xTicks.map((tick) => (
+              <g key={tick.timestamp}>
                 <line
-                  x1={chartPoints[index].x}
+                  x1={tick.x}
                   y1={plot.top}
-                  x2={chartPoints[index].x}
+                  x2={tick.x}
                   y2={height - plot.bottom}
                   className="chart-grid chart-grid--vertical"
                 />
                 <text
-                  x={chartPoints[index].x}
+                  x={tick.x}
                   y={height - plot.bottom + 26}
                   className="chart-tick"
                   textAnchor="middle"
                 >
-                  {formatAxisDate(items[index], range, locale)}
+                  {formatAxisDate(tick.timestamp, range, locale)}
                 </text>
               </g>
             ))}
@@ -804,14 +814,16 @@ function smoothChartPath(points: { x: number; y: number }[]) {
   }, `M ${points[0].x},${points[0].y}`)
 }
 
-function chartTickIndexes(length: number, maxTicks: number) {
-  if (length <= maxTicks) return Array.from({ length }, (_, index) => index)
+function chartTimeTicks(
+  timeMin: number,
+  timeMax: number,
+  maxTicks: number,
+) {
+  if (timeMin === timeMax || maxTicks <= 1) return [timeMin]
   return Array.from(
-    new Set(
-      Array.from({ length: maxTicks }, (_, index) =>
-        Math.round((index * (length - 1)) / (maxTicks - 1)),
-      ),
-    ),
+    { length: maxTicks },
+    (_, index) =>
+      timeMin + (index * (timeMax - timeMin)) / (maxTicks - 1),
   )
 }
 
@@ -850,7 +862,7 @@ function niceChartScale(values: number[], targetTicks: number) {
 }
 
 function formatAxisDate(
-  item: ValuationSnapshot,
+  timestamp: number,
   range: HistoryRange,
   locale: string,
 ) {
@@ -866,11 +878,7 @@ function formatAxisDate(
           day: 'numeric',
           timeZone: 'UTC',
         },
-  ).format(
-    range === '1D'
-      ? new Date(item.capturedAt)
-      : new Date(`${item.valuationDate}T00:00:00Z`),
-  )
+  ).format(new Date(timestamp))
 }
 
 function formatAxisMoney(value: number, locale: string) {

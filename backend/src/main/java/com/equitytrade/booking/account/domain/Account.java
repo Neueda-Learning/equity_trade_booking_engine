@@ -80,6 +80,21 @@ public record Account(
                 now.truncatedTo(ChronoUnit.MICROS));
     }
 
+    public Account activate(Instant now) {
+        if (status == AccountStatus.ACTIVE) {
+            return this;
+        }
+        return new Account(
+                id,
+                name,
+                broker,
+                accountNumberLast4,
+                baseCurrency,
+                AccountStatus.ACTIVE,
+                createdAt,
+                now.truncatedTo(ChronoUnit.MICROS));
+    }
+
     private static AccountFields validate(
             String rawName,
             String rawBroker,

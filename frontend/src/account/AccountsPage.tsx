@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
   ApiProblemError,
+  activateAccount,
   createAccount,
   deactivateAccount,
   getAccounts,
@@ -29,7 +30,7 @@ function AccountsPage() {
   const [positions, setPositions] = useState<Position[]>([])
   const [positionsLoading, setPositionsLoading] = useState(false)
   const [positionsError, setPositionsError] = useState('')
-  const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
+  const [changingStatusId, setChangingStatusId] = useState<string | null>(null)
 
   async function load(signal?: AbortSignal) {
     setLoading(true)
@@ -120,13 +121,21 @@ function AccountsPage() {
     setFieldErrors({})
   }
 
-  async function deactivate(account: Account) {
-    setDeactivatingId(account.id)
+  async function changeStatus(account: Account) {
+    const activating = account.status === 'INACTIVE'
+    setChangingStatusId(account.id)
     setMessage('')
     setServerError('')
     try {
-      await deactivateAccount(account.id)
-      setMessage(t('accounts.deactivated', { name: account.name }))
+      if (activating) {
+        await activateAccount(account.id)
+      } else {
+        await deactivateAccount(account.id)
+      }
+      setMessage(t(
+        activating ? 'accounts.activated' : 'accounts.deactivated',
+        { name: account.name },
+      ))
       await load()
     } catch (error) {
       setServerError(
@@ -135,7 +144,7 @@ function AccountsPage() {
           : t('accounts.requestFailed'),
       )
     } finally {
-      setDeactivatingId(null)
+      setChangingStatusId(null)
     }
   }
 
@@ -243,15 +252,20 @@ function AccountsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void deactivate(account)}
-                    disabled={
-                      account.status === 'INACTIVE' ||
-                      deactivatingId === account.id
-                    }
+                    onClick={() => void changeStatus(account)}
+                    disabled={changingStatusId === account.id}
                   >
-                    {deactivatingId === account.id
-                      ? t('accounts.deactivating')
-                      : t('accounts.deactivate')}
+                    {changingStatusId === account.id
+                      ? t(
+                        account.status === 'INACTIVE'
+                          ? 'accounts.activating'
+                          : 'accounts.deactivating',
+                      )
+                      : t(
+                        account.status === 'INACTIVE'
+                          ? 'accounts.activate'
+                          : 'accounts.deactivate',
+                      )}
                   </button>
                 </div>
               </article>

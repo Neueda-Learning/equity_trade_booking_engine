@@ -75,6 +75,16 @@ public class AccountApplicationService {
         return AccountView.from(accountRepository.save(deactivated));
     }
 
+    @Transactional
+    public AccountView activate(UUID id) {
+        Account account = find(id);
+        Account activated = account.activate(clock.instant());
+        if (activated == account) {
+            return AccountView.from(account);
+        }
+        return AccountView.from(accountRepository.save(activated));
+    }
+
     private Account find(UUID id) {
         return accountRepository.findById(id)
                 .orElseThrow(() -> new AccountNotFoundException(id));

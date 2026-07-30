@@ -282,6 +282,12 @@ export function deactivateAccount(id: string) {
   })
 }
 
+export function activateAccount(id: string) {
+  return request<Account>(`/api/accounts/${id}/activate`, {
+    method: 'POST',
+  })
+}
+
 export function getTrades(
   page: number,
   size: number,

@@ -142,6 +142,22 @@ public class AccountController {
         return AccountResponse.from(accountApplicationService.deactivate(id));
     }
 
+    @PostMapping("/{id}/activate")
+    @Operation(
+            summary = "Activate a securities account",
+            description = "Idempotently marks an account ACTIVE so it can be used for new trades.")
+    @ApiResponse(
+            responseCode = "404",
+            description = "Account does not exist",
+            content = @Content(
+                    mediaType = "application/problem+json",
+                    schema = @Schema(
+                            implementation =
+                                    ProblemDetailsDocumentation.class)))
+    public AccountResponse activate(@PathVariable UUID id) {
+        return AccountResponse.from(accountApplicationService.activate(id));
+    }
+
     private AccountCommand toCommand(AccountRequest request) {
         return new AccountCommand(
                 request.name(),

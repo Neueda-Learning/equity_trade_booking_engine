@@ -81,6 +81,7 @@ describe('trade CSV import', () => {
         'Row 2: account must match an active account name or ID.',
       ),
     ).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('CSV import failed')
     expect(
       screen.getByText('Row 2: side must be BUY or SELL.'),
     ).toBeInTheDocument()
@@ -127,10 +128,30 @@ describe('trade CSV import', () => {
     expect(
       await screen.findByText('Imported 1; 1 failed.'),
     ).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'CSV row 2: insufficient position',
+    )
     expect(
       screen.getByText('CSV row 2: insufficient position'),
     ).toBeInTheDocument()
     expect(onImported).toHaveBeenCalledOnce()
+  })
+
+  it('shows a visible error when import registration fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(new Error('offline')))
+    render(
+      <TradeCsvImport accounts={[primary]} onImported={vi.fn()} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open importer' }))
+    uploadCsv(validCsv())
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Import 1 trades' }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The CSV import could not be registered. No trades were submitted.',
+    )
   })
 
   it('does not submit trades when a duplicate import is cancelled', async () => {

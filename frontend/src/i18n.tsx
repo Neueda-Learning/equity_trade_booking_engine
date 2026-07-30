@@ -139,6 +139,7 @@ const en = {
   'accounts.created': '{name} created.',
   'accounts.updated': '{name} updated.',
   'accounts.deactivated': '{name} deactivated.',
+  'accounts.activated': '{name} activated.',
   'accounts.requestFailed':
     'The account request could not reach the backend.',
   'accounts.unavailable': 'Accounts are unavailable.',
@@ -148,6 +149,8 @@ const en = {
   'accounts.viewPositions': 'View positions',
   'accounts.deactivate': 'Deactivate',
   'accounts.deactivating': 'Deactivating…',
+  'accounts.activate': 'Activate',
+  'accounts.activating': 'Activating…',
   'accounts.positions': 'Positions · {name}',
   'accounts.loadingPositions': 'Loading positions…',
   'accounts.positionsUnavailable': 'Positions are unavailable.',
@@ -213,6 +216,7 @@ const en = {
   'trade.csvInvalidFile':
     'Choose a .csv file no larger than 1 MB.',
   'trade.csvReadFailed': 'The CSV file could not be read.',
+  'trade.csvErrorTitle': 'CSV import failed',
   'trade.csvReady': '{file} · {count} rows ready',
   'trade.csvMore': 'and {count} more',
   'trade.csvSorted':
@@ -424,6 +428,7 @@ const zhCN: TranslationValues = {
   'accounts.created': '已创建 {name}。',
   'accounts.updated': '已更新 {name}。',
   'accounts.deactivated': '已停用 {name}。',
+  'accounts.activated': '已重新启用 {name}。',
   'accounts.requestFailed': '账户请求无法连接后端服务。',
   'accounts.unavailable': '账户数据不可用。',
   'accounts.kickerList': '证券账户',
@@ -432,6 +437,8 @@ const zhCN: TranslationValues = {
   'accounts.viewPositions': '查看持仓',
   'accounts.deactivate': '停用',
   'accounts.deactivating': '停用中…',
+  'accounts.activate': '重新启用',
+  'accounts.activating': '启用中…',
   'accounts.positions': '持仓 · {name}',
   'accounts.loadingPositions': '正在加载持仓…',
   'accounts.positionsUnavailable': '持仓数据不可用。',
@@ -491,6 +498,7 @@ const zhCN: TranslationValues = {
   'trade.csvNoFile': '未选择文件',
   'trade.csvInvalidFile': '请选择不超过 1 MB 的 .csv 文件。',
   'trade.csvReadFailed': '无法读取该 CSV 文件。',
+  'trade.csvErrorTitle': 'CSV 导入失败',
   'trade.csvReady': '{file} · 已准备 {count} 行',
   'trade.csvMore': '以及另外 {count} 行',
   'trade.csvSorted':
@@ -697,6 +705,7 @@ const ptBR: TranslationValues = {
   'accounts.created': '{name} criada.',
   'accounts.updated': '{name} atualizada.',
   'accounts.deactivated': '{name} desativada.',
+  'accounts.activated': '{name} reativada.',
   'accounts.requestFailed': 'A solicitação não conseguiu acessar o servidor.',
   'accounts.unavailable': 'As contas estão indisponíveis.',
   'accounts.kickerList': 'Contas de títulos',
@@ -705,6 +714,8 @@ const ptBR: TranslationValues = {
   'accounts.viewPositions': 'Ver posições',
   'accounts.deactivate': 'Desativar',
   'accounts.deactivating': 'Desativando…',
+  'accounts.activate': 'Reativar',
+  'accounts.activating': 'Reativando…',
   'accounts.positions': 'Posições · {name}',
   'accounts.loadingPositions': 'Carregando posições…',
   'accounts.positionsUnavailable': 'As posições estão indisponíveis.',
@@ -770,6 +781,7 @@ const ptBR: TranslationValues = {
   'trade.csvInvalidFile':
     'Escolha um arquivo .csv de no máximo 1 MB.',
   'trade.csvReadFailed': 'Não foi possível ler o arquivo CSV.',
+  'trade.csvErrorTitle': 'Falha na importação do CSV',
   'trade.csvReady': '{file} · {count} linhas prontas',
   'trade.csvMore': 'e mais {count}',
   'trade.csvSorted':

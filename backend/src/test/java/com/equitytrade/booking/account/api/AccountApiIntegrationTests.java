@@ -33,7 +33,7 @@ class AccountApiIntegrationTests {
     private ObjectMapper objectMapper;
 
     @Test
-    void createsGetsUpdatesAndIdempotentlyDeactivatesAccount() throws Exception {
+    void createsGetsUpdatesAndIdempotentlyChangesAccountStatus() throws Exception {
         MvcResult created = mockMvc.perform(post("/api/accounts")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(accountRequest("Retirement", "Fidelity", "4321")))
@@ -66,6 +66,13 @@ class AccountApiIntegrationTests {
         mockMvc.perform(post("/api/accounts/{id}/deactivate", id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("INACTIVE"));
+
+        mockMvc.perform(post("/api/accounts/{id}/activate", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        mockMvc.perform(post("/api/accounts/{id}/activate", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
 
         mockMvc.perform(get("/api/accounts"))
                 .andExpect(status().isOk())

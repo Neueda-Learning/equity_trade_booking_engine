@@ -213,8 +213,13 @@ function TradeCsvImport({
           </div>
 
           {(fileError || issues.length > 0) && (
-            <div className="csv-import-alert" role="alert">
-              <strong>{fileName || t('trade.csvFile')}</strong>
+            <div
+              className="csv-import-alert"
+              role="alert"
+              aria-live="assertive"
+            >
+              <strong>{t('trade.csvErrorTitle')}</strong>
+              <p>{fileName || t('trade.csvFile')}</p>
               {fileError && <p>{fileError}</p>}
               {visibleIssues.length > 0 && (
                 <ul>
@@ -329,7 +334,8 @@ function TradeCsvImport({
               className={`csv-import-result ${
                 result.failures.length > 0 ? 'csv-import-result--warning' : ''
               }`}
-              role={result.successCount === 0 ? 'alert' : 'status'}
+              role={result.failures.length > 0 ? 'alert' : 'status'}
+              aria-live={result.failures.length > 0 ? 'assertive' : 'polite'}
             >
               <strong>
                 {result.failures.length === 0

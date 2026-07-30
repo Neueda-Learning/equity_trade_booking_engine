@@ -190,6 +190,39 @@ describe('P&L Dashboard', () => {
     expect(screen.getAllByText('$20.12').length).toBeGreaterThan(0)
   })
 
+  it('positions 30D points by elapsed time instead of row index', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch(
+        dashboard(),
+        history([
+          snapshot('day-1', '2026-07-01T00:00:00Z', 100, 0),
+          snapshot('day-2', '2026-07-02T00:00:00Z', 110, 10),
+          snapshot('day-30', '2026-07-30T00:00:00Z', 120, 20),
+        ]),
+      ),
+    )
+    render(<Dashboard />)
+
+    await screen.findByRole('img', {
+      name: 'Valuation history chart with 3 points',
+    })
+    const firstX = Number(
+      screen.getByLabelText(/Market Value, Jul 1, 2026, \$100\.00/)
+        .getAttribute('cx'),
+    )
+    const secondX = Number(
+      screen.getByLabelText(/Market Value, Jul 2, 2026, \$110\.00/)
+        .getAttribute('cx'),
+    )
+    const lastX = Number(
+      screen.getByLabelText(/Market Value, Jul 30, 2026, \$120\.00/)
+        .getAttribute('cx'),
+    )
+
+    expect((secondX - firstX) / (lastX - firstX)).toBeCloseTo(1 / 29)
+  })
+
   it('shows portfolio allocation beside the valuation curve', async () => {
     vi.stubGlobal(
       'fetch',
