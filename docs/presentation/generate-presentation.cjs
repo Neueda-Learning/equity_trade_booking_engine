@@ -2,7 +2,13 @@ const fs = require('fs')
 const path = require('path')
 const PptxGenJS = require('/tmp/deskflow-ppt-deps/node_modules/pptxgenjs')
 
-const englishOnly = process.argv.includes('--english')
+const currentEnglish = process.argv.includes('--current-english')
+
+if (process.argv.includes('--english') && !currentEnglish) {
+  require('./generate-demo-presentation.cjs')
+} else {
+
+const englishOnly = process.argv.includes('--english') || currentEnglish
 const pptx = new PptxGenJS()
 pptx.layout = 'LAYOUT_WIDE'
 pptx.author = 'Group 5 — Give me five'
@@ -50,8 +56,21 @@ const assets = path.join(__dirname, 'assets')
 const notesMarkdown = fs.readFileSync(path.join(__dirname, 'speaker-notes-bilingual.md'), 'utf8')
 const noteBlocks = notesMarkdown.split(/^## Slide /m).slice(1)
 const notes = new Map(noteBlocks.map((block) => [Number(block.match(/^(\d+)/)[1]), `Slide ${block}`]))
+const currentEnglishNotes = new Map([
+  [3, 'The workflow starts with a securities account. Activity supports verified BUY and SELL booking as well as CSV bulk import. A normalized content fingerprint warns before the same complete table is imported again. BOOKED trades are replayed chronologically into positions; quotes then value those positions, and the dashboard presents current P&L plus persisted history. Cancelling, deleting, or amending a trade recalculates downstream values without erasing the original evidence.'],
+  [6, 'The product is a modular monolith: React 19 and TypeScript run behind Nginx, while Spring Boot 3.5 on Java 21 is divided into Account, Trade, Position, Market Data, and P&L modules. Dependencies flow from API to application to domain, with infrastructure implementing ports. MySQL stores accounts, trades, the CSV import registry, quote snapshots, and valuation history. Redis remains a disposable quote cache, never the system of record.'],
+  [7, 'Market data can come from deterministic Mock data or explicitly configured Finnhub. A successful provider quote is cached in Redis and appended to a MySQL quote-snapshot history. Fresh cache values are reused normally; retained values are used only as stale fallback during a provider failure. The UI exposes MOCK, LIVE, CACHED, STALE, and incomplete states. A failed real provider never silently becomes Mock, and missing data never becomes a zero price.'],
+  [8, 'The dashboard combines the same backend position and valuation model for all accounts or one account. It shows market value, cost basis, unrealized P&L, return, open and unpriced positions, and quote status by ticker. Scheduled valuation snapshots support 1D, 7D, 30D, and ALL views. The chart contains only locally persisted observations, so the system does not fabricate earlier history.'],
+  [9, 'The operational workbench has Accounts, Activity, and Market Data areas. Accounts supports active and inactive securities accounts and account-level positions. Activity covers verified booking, pagination, audit-preserving cancellation, deletion, amendment, and CSV bulk import with duplicate confirmation. Market Data supports search, refresh, provider status, and opt-in outage controls. The responsive interface is available in English, Simplified Chinese, and Brazilian Portuguese, with important states expressed in text as well as color.'],
+  [11, 'The current release deliberately limits scope: it is single-user, USD-only, has no cash ledger, does not allow short positions, calculates unrealized P&L only, and uses weighted-average cost. Likely next increments include authentication and ownership, cash and multi-currency accounting, realized P&L and tax lots, more providers and streaming quotes, plus production secret management, observability, and deployment hardening.'],
+  [12, 'To conclude, the system connects auditable trade facts, replayable positions, transparent quote handling, and consistent valuation. A live demo can move through Accounts, Activity, CSV import, Dashboard, and Market Data, then show how audit-preserving changes and stale quote fallback affect downstream values without hiding their origin. Thank you, and we welcome your questions.'],
+])
 
 function addNotes(slide, number) {
+  if (currentEnglish && currentEnglishNotes.has(number)) {
+    slide.addNotes(currentEnglishNotes.get(number))
+    return
+  }
   const block = notes.get(number) || ''
   if (!englishOnly) {
     slide.addNotes(block)
@@ -184,8 +203,8 @@ function addMetric(slide, x, y, w, labelCn, labelEn, value, color = C.text) {
     ['01', '账户', 'Account', 'ACTIVE / INACTIVE'],
     ['02', '交易', 'Activity', 'BUY / SELL'],
     ['03', '持仓', 'Position', 'Replay BOOKED'],
-    ['04', '行情', 'Market Data', 'MOCK / LIVE'],
-    ['05', '估值', 'Dashboard', 'P&L + History'],
+    ['04', '行情', 'Market Data', 'SOURCE + AGE'],
+    ['05', '估值', 'Dashboard', 'P&L + HISTORY'],
   ]
   steps.forEach((s, i) => {
     const x = 0.62 + i * 2.54
@@ -196,6 +215,7 @@ function addMetric(slide, x, y, w, labelCn, labelEn, value, color = C.text) {
     slide.addText(s[3], { x: x + 0.23, y: 4.03, w: 1.56, h: 0.22, fontFace: 'Arial', fontSize: 7.5, bold: true, color: C.muted, align: 'center', margin: 0, fit: 'shrink' })
     if (i < steps.length - 1) addArrow(slide, x + 2.08, 3.33, 0.37, '94A3B8')
   })
+  addTag(slide, 'CSV IMPORT', 3.41, 4.24, 1.52, C.sky, C.blue2)
   slide.addShape(S.line, { x: 10.1, y: 4.92, w: -7.85, h: 0, line: { color: C.blue, width: 1.5, dash: 'dash', beginArrowType: 'none', endArrowType: 'triangle' } })
   addBilingual(slide, '取消 / 删除 / 修改会重新影响持仓与盈亏，但保留原始审计证据', 'Cancel, delete, or amend recalculates downstream values without erasing evidence.', 2.45, 5.18, 7.55, 0.72, { cnSize: 13, enSize: 8.5, align: 'center' })
   addTag(slide, 'MYSQL = SYSTEM OF RECORD', 4.62, 6.05, 2.3, 'E2E8F0', C.slate)
@@ -299,7 +319,7 @@ function addMetric(slide, x, y, w, labelCn, labelEn, value, color = C.text) {
   addCard(slide, 10.25, 1.72, 2.35, 4.95, { fill: 'F8FAFC', line: 'CBD5E1' })
   addBilingual(slide, '数据与外部服务', 'DATA & EXTERNALS', 10.6, 1.98, 1.65, 0.6, { cnSize: 14, enSize: 8, align: 'center' })
   const stores = [
-    ['事实来源', 'MySQL 8.4 · System of record', C.blue, C.pale],
+    ['事实来源', englishOnly ? 'MySQL 8.4\nAccounts · Trades · Imports · History' : 'MySQL 8.4 · System of record', C.blue, C.pale],
     ['可丢弃行情缓存', 'Redis 7.4 · Disposable quote cache', C.amber, C.amberBg],
     ['行情 Provider', 'Mock / Finnhub provider', C.green, C.greenBg],
   ]
@@ -345,6 +365,7 @@ function addMetric(slide, x, y, w, labelCn, labelEn, value, color = C.text) {
   addBilingual(slide, '无可用行情', 'Unavailable', 10.68, 5.08, 1.05, 0.62, { cnSize: 11, enSize: 7, color: C.red, align: 'center' })
   slide.addShape(S.roundRect, { x: 2.2, y: 6.08, w: 8.9, h: 0.52, rectRadius: 0.08, fill: { color: C.redBg }, line: { color: 'FCA5A5' } })
   addBilingual(slide, '真实 Provider 失败时绝不自动伪装成 Mock', 'A failed real provider never silently falls back to generated Mock data.', 2.45, 6.15, 8.4, 0.32, { cnSize: 13, enSize: 8.2, color: C.red, enColor: '991B1B', align: 'center' })
+  if (englishOnly) addTag(slide, 'MYSQL QUOTE + VALUATION SNAPSHOTS', 9.62, 6.72, 2.68, 'E2E8F0', C.slate)
   addNotes(slide, 7)
 }
 
@@ -356,7 +377,7 @@ function addMetric(slide, x, y, w, labelCn, labelEn, value, color = C.text) {
   const items = [
     ['统一计算', 'One backend model'],
     ['状态透明', 'Source + freshness'],
-    ['历史真实', 'Persisted snapshots'],
+    ['历史真实', 'Persisted 1D / 7D / 30D / ALL history'],
   ]
   items.forEach((item, i) => {
     const y = 1.75 + i * 1.42
@@ -375,7 +396,7 @@ function addMetric(slide, x, y, w, labelCn, labelEn, value, color = C.text) {
   addTitle(slide, 9, '产品工作台', 'Product Workbench', 'OPERATIONS')
   const panels = [
     ['accounts.png', '账户', 'Accounts', '账户状态 + 账户级持仓', 'Account status + account-level positions'],
-    ['activity.png', '交易活动', 'Activity', '录入 + 查询 + 审计操作', 'Booking + search + audit actions'],
+    ['activity.png', '交易活动', 'Activity', '录入 + 查询 + 审计操作', 'Booking + CSV import + audit actions'],
     ['market-data.png', '市场行情', 'Market Data', '搜索 + 刷新 + 故障演练', 'Search + refresh + outage simulation'],
   ]
   panels.forEach((p, i) => {
@@ -386,7 +407,7 @@ function addMetric(slide, x, y, w, labelCn, labelEn, value, color = C.text) {
     slide.addText(englishOnly ? p[4] : p[3], { x: x + 0.28, y: 5.18, w: 3.16, h: 0.28, fontFace: englishOnly ? 'Arial' : undefined, fontSize: 10.5, color: C.muted, align: 'center', margin: 0, fit: 'shrink' })
   })
   slide.addShape(S.roundRect, { x: 2.05, y: 6.25, w: 9.25, h: 0.5, rectRadius: 0.08, fill: { color: 'E2E8F0' }, line: { color: 'E2E8F0' } })
-  addBilingual(slide, '同一信息架构覆盖桌面与移动端 · 状态不只依赖颜色', 'One information architecture for desktop and mobile · Text labels reinforce color', 2.33, 6.32, 8.69, 0.3, { cnSize: 12.5, enSize: 8, color: C.slate, enColor: C.muted, align: 'center' })
+  addBilingual(slide, '同一信息架构覆盖桌面与移动端 · 状态不只依赖颜色', 'Responsive desktop/mobile UI · English, Chinese, and Portuguese · Text-labelled states', 2.33, 6.32, 8.69, 0.3, { cnSize: 12.5, enSize: 8, color: C.slate, enColor: C.muted, align: 'center' })
   addNotes(slide, 9)
 }
 
@@ -451,7 +472,7 @@ function addMetric(slide, x, y, w, labelCn, labelEn, value, color = C.text) {
   const roadmap = [
     ['01', '身份与归属', 'Auth · authorization · ownership'],
     ['02', '完整会计能力', 'Cash · FX · realized P&L · tax lots'],
-    ['03', '实时数据能力', 'Providers · WebSocket · historical candles'],
+    ['03', '实时数据能力', 'More providers · WebSocket streaming'],
     ['04', '生产运行能力', 'Secrets · observability · deployment'],
   ]
   roadmap.forEach((r, i) => {
@@ -484,7 +505,7 @@ function addMetric(slide, x, y, w, labelCn, labelEn, value, color = C.text) {
     addBilingual(slide, v[0], v[1], x + 0.18, 3.02, 1.69, 0.55, { cnSize: 15, enSize: 8, color: C.paper, enColor: '93C5FD', align: 'center' })
   })
   slide.addText('LIVE DEMO PATH', { x: 0.82, y: 4.52, w: 2.6, h: 0.25, fontFace: 'Arial', fontSize: 9, bold: true, color: '93C5FD', charSpacing: 1.4, margin: 0 })
-  const demo = ['Accounts', 'Activity', 'Dashboard', 'Outage', 'STALE']
+  const demo = ['Accounts', 'Activity', 'CSV Import', 'Dashboard', 'Market Data']
   demo.forEach((d, i) => {
     const x = 0.82 + i * 1.43
     addTag(slide, d.toUpperCase(), x, 5.04, 1.12, i === 3 ? '78350F' : i === 4 ? '7F1D1D' : '1E3A8A', i === 3 ? 'FEF3C7' : i === 4 ? 'FEE2E2' : 'DBEAFE')
@@ -499,9 +520,17 @@ function addMetric(slide, x, y, w, labelCn, labelEn, value, color = C.text) {
 }
 
 pptx.writeFile({
-  fileName: path.join(__dirname, englishOnly ? 'Equity_Trade_Booking_Engine_English.pptx' : 'Equity_Trade_Booking_Engine_Bilingual.pptx'),
+  fileName: path.join(
+    __dirname,
+    currentEnglish
+      ? 'Equity_Trade_Booking_Engine_Current_English.pptx'
+      : englishOnly
+        ? 'Equity_Trade_Booking_Engine_English.pptx'
+        : 'Equity_Trade_Booking_Engine_Bilingual.pptx',
+  ),
   compression: true,
 }).catch((error) => {
   console.error(error)
   process.exitCode = 1
 })
+}
