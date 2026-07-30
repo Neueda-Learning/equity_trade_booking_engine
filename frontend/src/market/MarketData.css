@@ -80,6 +80,35 @@
   margin-bottom: 20px;
 }
 
+.market-quotes-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.market-quotes-heading h3 {
+  margin: 0;
+}
+
+.market-refresh-all {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 9px;
+  color: #fff;
+  background: #1d4ed8;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.market-refresh-all:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .quote-labels {
   display: flex;
   flex-wrap: wrap;
@@ -108,7 +137,8 @@
 @media (max-width: 700px) {
   .market-heading,
   .market-search,
-  .demo-controls {
+  .demo-controls,
+  .market-quotes-heading {
     align-items: stretch;
     flex-direction: column;
   }

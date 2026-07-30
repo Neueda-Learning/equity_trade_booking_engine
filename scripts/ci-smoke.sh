@@ -538,6 +538,13 @@ jq --exit-status --arg accountId "$ACCOUNT_ID" '
   )
 ' "$LOG_DIR/history-account.json" >/dev/null
 
+jq --sort-keys '[.items[].id] | sort' \
+  "$LOG_DIR/history-all.json" \
+  >"$LOG_DIR/history-all-before-restart-ids.json"
+jq --sort-keys '[.items[].id] | sort' \
+  "$LOG_DIR/history-account.json" \
+  >"$LOG_DIR/history-account-before-redis-flush-ids.json"
+
 curl --fail --silent --show-error \
   "$BACKEND_URL/api/dashboard?accountId=$ACCOUNT_ID" \
   >"$LOG_DIR/dashboard-account.json"
@@ -670,8 +677,15 @@ curl --fail --silent --show-error \
   >"$LOG_DIR/history-after-restart.json"
 jq --exit-status '
   .range == "ALL" and
-  (.items | length) == 0
+  .source == "LOCAL" and
+  (.items | length) >= 1
 ' "$LOG_DIR/history-after-restart.json" >/dev/null
+jq --sort-keys '[.items[].id] | sort' \
+  "$LOG_DIR/history-after-restart.json" \
+  >"$LOG_DIR/history-all-after-restart-ids.json"
+diff --unified \
+  "$LOG_DIR/history-all-before-restart-ids.json" \
+  "$LOG_DIR/history-all-after-restart-ids.json"
 
 compose exec -T redis redis-cli FLUSHDB >/dev/null
 [[ "$(compose exec -T redis redis-cli DBSIZE)" == "0" ]]
@@ -680,9 +694,16 @@ curl --fail --silent --show-error \
   >"$LOG_DIR/history-after-redis-flush.json"
 jq --exit-status --arg accountId "$ACCOUNT_ID" '
   .range == "ALL" and
-  (.items | length) == 0 and
+  .source == "LOCAL" and
+  (.items | length) >= 1 and
   all(.items[]; .accountId == $accountId)
 ' "$LOG_DIR/history-after-redis-flush.json" >/dev/null
+jq --sort-keys '[.items[].id] | sort' \
+  "$LOG_DIR/history-after-redis-flush.json" \
+  >"$LOG_DIR/history-account-after-redis-flush-ids.json"
+diff --unified \
+  "$LOG_DIR/history-account-before-redis-flush-ids.json" \
+  "$LOG_DIR/history-account-after-redis-flush-ids.json"
 
 jq --null-input \
   --arg accountId "$ACCOUNT_ID" \

@@ -37,6 +37,8 @@ function MarketData() {
   const [searching, setSearching] = useState(false)
   const [searchResult, setSearchResult] = useState<MarketQuote | null>(null)
   const [refreshingTicker, setRefreshingTicker] = useState<string | null>(null)
+  const [refreshingAll, setRefreshingAll] = useState(false)
+  const [refreshAllError, setRefreshAllError] = useState('')
   const [demoChanging, setDemoChanging] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -113,6 +115,7 @@ function MarketData() {
   async function refresh(quote: MarketQuote) {
     setRefreshingTicker(quote.ticker)
     setMessage('')
+    setRefreshAllError('')
     setError('')
     setUnavailable(false)
     try {
@@ -137,6 +140,50 @@ function MarketData() {
       await reloadProviderStatus().catch(() => undefined)
     } finally {
       setRefreshingTicker(null)
+    }
+  }
+
+  async function refreshAll() {
+    setRefreshingAll(true)
+    setMessage('')
+    setRefreshAllError('')
+    setError('')
+    setUnavailable(false)
+    try {
+      const results = await Promise.allSettled(
+        quotes.map((quote) => refreshMarketQuote(quote.ticker)),
+      )
+      const refreshedQuotes = results.flatMap((result) =>
+        result.status === 'fulfilled' ? [result.value] : [],
+      )
+      const refreshedByTicker = new Map(
+        refreshedQuotes.map((quote) => [quote.ticker, quote]),
+      )
+      setQuotes((current) =>
+        current.map((quote) => refreshedByTicker.get(quote.ticker) ?? quote),
+      )
+      setSearchResult((current) =>
+        current ? refreshedByTicker.get(current.ticker) ?? current : current,
+      )
+
+      const failedCount = results.length - refreshedQuotes.length
+      if (failedCount === 0) {
+        setMessage(t('market.allRefreshed', {
+          count: refreshedQuotes.length,
+        }))
+      } else if (refreshedQuotes.length === 0) {
+        setRefreshAllError(t('market.refreshAllFailed', {
+          failed: failedCount,
+        }))
+      } else {
+        setRefreshAllError(t('market.refreshAllPartial', {
+          success: refreshedQuotes.length,
+          failed: failedCount,
+        }))
+      }
+      await reloadProviderStatus().catch(() => undefined)
+    } finally {
+      setRefreshingAll(false)
     }
   }
 
@@ -175,6 +222,7 @@ function MarketData() {
             onChange={(event) => {
               setLoading(true)
               setError('')
+              setRefreshAllError('')
               setUnavailable(false)
               setAccountId(event.target.value)
               setSearchResult(null)
@@ -215,6 +263,11 @@ function MarketData() {
       </form>
 
       {message && <p className="notice notice--success">{message}</p>}
+      {refreshAllError && (
+        <p className="notice notice--error" role="alert">
+          {refreshAllError}
+        </p>
+      )}
       {loading && <p className="table-state">{t('market.loading')}</p>}
       {unavailable && (
         <p className="table-state table-state--error" role="alert">
@@ -232,6 +285,7 @@ function MarketData() {
           <QuoteTable
             quotes={[searchResult]}
             refreshingTicker={refreshingTicker}
+            refreshingAll={refreshingAll}
             onRefresh={refresh}
           />
         </div>
@@ -241,10 +295,23 @@ function MarketData() {
       )}
       {!loading && !error && !unavailable && quotes.length > 0 && (
         <div className="panel">
-          <h3>{t('market.positionQuotes')}</h3>
+          <div className="market-quotes-heading">
+            <h3>{t('market.positionQuotes')}</h3>
+            <button
+              type="button"
+              className="market-refresh-all"
+              disabled={refreshingAll || refreshingTicker !== null}
+              onClick={() => void refreshAll()}
+            >
+              {refreshingAll
+                ? t('market.refreshingAll')
+                : t('market.refreshAll')}
+            </button>
+          </div>
           <QuoteTable
             quotes={quotes}
             refreshingTicker={refreshingTicker}
+            refreshingAll={refreshingAll}
             onRefresh={refresh}
           />
         </div>
@@ -337,10 +404,12 @@ function DemoControls({
 function QuoteTable({
   quotes,
   refreshingTicker,
+  refreshingAll,
   onRefresh,
 }: {
   quotes: MarketQuote[]
   refreshingTicker: string | null
+  refreshingAll: boolean
   onRefresh: (quote: MarketQuote) => Promise<void>
 }) {
   const { locale, t } = useI18n()
@@ -392,10 +461,10 @@ function QuoteTable({
                 <button
                   type="button"
                   className="button-secondary"
-                  disabled={refreshingTicker === quote.ticker}
+                  disabled={refreshingAll || refreshingTicker === quote.ticker}
                   onClick={() => void onRefresh(quote)}
                 >
-                  {refreshingTicker === quote.ticker
+                  {refreshingAll || refreshingTicker === quote.ticker
                     ? t('common.refreshing')
                     : t('market.refreshTicker', { ticker: quote.ticker })}
                 </button>
