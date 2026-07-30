@@ -85,6 +85,54 @@ describe('Market Data', () => {
     )
   })
 
+  it('refreshes every displayed position quote', async () => {
+    const fetchMock = routedFetch({
+      status: providerStatus('FINNHUB'),
+      quotes: [quote('AAPL'), quote('MSFT', { cached: true })],
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MarketData />)
+    await screen.findByText('AAPL')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Refresh all quotes' }),
+    )
+
+    expect(
+      await screen.findByText('Refreshed 2 quotes.'),
+    ).toBeInTheDocument()
+    const refreshedUrls = fetchMock.mock.calls
+      .filter(([, init]) => init?.method === 'POST')
+      .map(([url]) => String(url))
+    expect(refreshedUrls).toEqual([
+      '/api/market-data/quotes/AAPL/refresh',
+      '/api/market-data/quotes/MSFT/refresh',
+    ])
+  })
+
+  it('keeps the table visible when one quote fails to refresh', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch({
+        status: providerStatus('FINNHUB'),
+        quotes: [quote('AAPL'), quote('MSFT', { cached: true })],
+        refreshFailures: ['MSFT'],
+      }),
+    )
+
+    render(<MarketData />)
+    await screen.findByText('AAPL')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Refresh all quotes' }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Refreshed 1 quotes; 1 failed and kept their previous values.',
+    )
+    expect(screen.getByText('AAPL')).toBeInTheDocument()
+    expect(screen.getByText('MSFT')).toBeInTheDocument()
+  })
+
   it('searches for a ticker and refreshes a live quote', async () => {
     const fetchMock = routedFetch({
       status: providerStatus('FINNHUB'),
@@ -182,6 +230,7 @@ function routedFetch(options: {
     errors: Record<string, string>
   }
   rejectQuotes?: boolean
+  refreshFailures?: string[]
   demo?: () => boolean
   setDemo?: (enabled: boolean) => void
 }) {
@@ -211,6 +260,20 @@ function routedFetch(options: {
           ? url.split('/').at(-2) ?? 'AAPL'
           : url.split('/').at(-1) ?? 'AAPL',
       ).toUpperCase()
+      if (
+        url.endsWith('/refresh')
+        && options.refreshFailures?.includes(ticker)
+      ) {
+        return response(
+          {
+            status: 503,
+            detail: 'The market data provider is unavailable.',
+            errors: { provider: 'provider unavailable' },
+          },
+          false,
+          503,
+        )
+      }
       if (options.quoteFailure) {
         return response(options.quoteFailure, false, options.quoteFailure.status)
       }

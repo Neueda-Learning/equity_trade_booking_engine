@@ -293,6 +293,13 @@ const en = {
   'market.lastSuccessfulPrefix': 'Last successful update ',
   'market.refreshTicker': 'Refresh {ticker}',
   'market.refreshed': '{ticker} {source} quote refreshed.',
+  'market.refreshAll': 'Refresh all quotes',
+  'market.refreshingAll': 'Refreshing all…',
+  'market.allRefreshed': 'Refreshed {count} quotes.',
+  'market.refreshAllPartial':
+    'Refreshed {success} quotes; {failed} failed and kept their previous values.',
+  'market.refreshAllFailed':
+    'Unable to refresh {failed} quotes. Previous values were kept.',
   'market.timeout':
     'Live market data timed out and no cached quote is available.',
   'market.rateLimit':
@@ -571,6 +578,12 @@ const zhCN: TranslationValues = {
   'market.lastSuccessfulPrefix': '最后成功更新 ',
   'market.refreshTicker': '刷新 {ticker}',
   'market.refreshed': '{ticker} 的 {source} 报价已刷新。',
+  'market.refreshAll': '刷新全部报价',
+  'market.refreshingAll': '正在刷新全部报价…',
+  'market.allRefreshed': '已刷新 {count} 条报价。',
+  'market.refreshAllPartial':
+    '已刷新 {success} 条报价；{failed} 条失败并保留原值。',
+  'market.refreshAllFailed': '无法刷新 {failed} 条报价，已保留原值。',
   'market.timeout': '实时市场数据超时，且没有可用的缓存报价。',
   'market.rateLimit': '实时数据源已达到速率上限，请稍后重试。',
   'market.demoNoCache': '演示故障已启用，且没有可用的缓存报价。',
@@ -859,6 +872,13 @@ const ptBR: TranslationValues = {
   'market.lastSuccessfulPrefix': 'Última atualização bem-sucedida ',
   'market.refreshTicker': 'Atualizar {ticker}',
   'market.refreshed': 'Cotação {source} de {ticker} atualizada.',
+  'market.refreshAll': 'Atualizar todas as cotações',
+  'market.refreshingAll': 'Atualizando todas…',
+  'market.allRefreshed': '{count} cotações atualizadas.',
+  'market.refreshAllPartial':
+    '{success} cotações atualizadas; {failed} falharam e mantiveram os valores anteriores.',
+  'market.refreshAllFailed':
+    'Não foi possível atualizar {failed} cotações. Os valores anteriores foram mantidos.',
   'market.timeout':
     'Os dados ao vivo expiraram e não há cotação em cache disponível.',
   'market.rateLimit':

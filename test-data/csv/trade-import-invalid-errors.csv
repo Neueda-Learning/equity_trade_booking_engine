@@ -1,0 +1,7 @@
+account,ticker,side,quantity,tradePrice,executedAt
+Unknown Account,AAPL,BUY,10,198.25,2026-07-01T14:30:00Z
+Primary Account,TOO_LONG_TICKER,BUY,5,100.00,2026-07-03T15:00:00Z
+Primary Account,MSFT,HOLD,3,486.40,2026-07-06T14:45:00Z
+Primary Account,NVDA,BUY,0,157.80,2026-07-08T16:10:00Z
+Primary Account,SPY,BUY,2,-10.00,2026-07-10T14:35:00Z
+Primary Account,TSLA,SELL,1,315.60,not-a-timestamp
