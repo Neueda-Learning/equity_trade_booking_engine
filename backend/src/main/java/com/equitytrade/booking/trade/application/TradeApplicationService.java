@@ -75,12 +75,10 @@ public class TradeApplicationService {
         return TradeView.from(tradeRepository.save(trade));
     }
 
-    @Transactional
     public TradeView cancel(UUID id) {
         return cancel(id, TradeCancellationReason.CANCELLED, false);
     }
 
-    @Transactional
     public TradeView delete(UUID id) {
         return cancel(id, TradeCancellationReason.DELETED, true);
     }
@@ -139,9 +137,22 @@ public class TradeApplicationService {
             boolean strictReason) {
         Trade initial = tradeRepository.findById(id)
                 .orElseThrow(() -> new TradeNotFoundException(id));
-        accountRepository.findByIdForUpdate(initial.accountId())
+        return Objects.requireNonNull(transactionTemplate.execute(
+                status -> cancelValidated(
+                        id,
+                        initial.accountId(),
+                        reason,
+                        strictReason)));
+    }
+
+    private TradeView cancelValidated(
+            UUID id,
+            UUID accountId,
+            TradeCancellationReason reason,
+            boolean strictReason) {
+        accountRepository.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new AccountNotFoundException(
-                        initial.accountId()));
+                        accountId));
         Trade trade = tradeRepository.findById(id)
                 .orElseThrow(() -> new TradeNotFoundException(id));
         if (trade.status() == TradeStatus.CANCELLED) {

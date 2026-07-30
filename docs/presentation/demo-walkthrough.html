@@ -1,0 +1,1158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>TradeFlow Demo — Speaker Script and Click Path</title>
+  <style>
+    @font-face {
+      font-family: "WenQuanYi Zen Hei";
+      src: url("assets/fonts/wqy-zenhei-script.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 400 900;
+      font-display: swap;
+    }
+
+    :root {
+      --ink: #f5f3ed;
+      --ink-dim: #aaa9a2;
+      --paper: #0e1110;
+      --paper-2: #151a18;
+      --paper-3: #1c231f;
+      --line: rgba(245, 243, 237, .14);
+      --green: #77e6a6;
+      --green-deep: #0f7a46;
+      --amber: #f1bd6d;
+      --red: #ff8c82;
+      --blue: #8db6ff;
+      --radius: 20px;
+      --shadow: 0 24px 80px rgba(0, 0, 0, .36);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+        BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #070908;
+      color: var(--ink);
+    }
+
+    button, a { font: inherit; }
+
+    button:focus-visible, a:focus-visible {
+      outline: 3px solid var(--amber);
+      outline-offset: 3px;
+    }
+
+    .deck {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background:
+        radial-gradient(circle at 85% 12%, rgba(35, 112, 67, .16), transparent 31%),
+        linear-gradient(145deg, #0d100f, #070908 68%);
+    }
+
+    .topbar {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 30;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      min-height: 64px;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 9, 8, .83);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--ink);
+      letter-spacing: .03em;
+      font-weight: 750;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      color: #0a100c;
+      background: var(--green);
+      font-weight: 900;
+    }
+
+    .progress {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .progress button {
+      width: 8px;
+      height: 8px;
+      padding: 0;
+      border: 0;
+      border-radius: 99px;
+      background: rgba(245, 243, 237, .22);
+      cursor: pointer;
+      transition: width .2s ease, background .2s ease;
+    }
+
+    .progress button.active {
+      width: 28px;
+      background: var(--green);
+    }
+
+    .top-actions {
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ghost-button, .live-link {
+      min-height: 36px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, .045);
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .ghost-button:hover, .live-link:hover { background: rgba(255, 255, 255, .09); }
+
+    .live-link {
+      display: inline-flex;
+      align-items: center;
+      color: #07100a;
+      border-color: var(--green);
+      background: var(--green);
+      font-weight: 800;
+    }
+
+    .stage {
+      position: absolute;
+      inset: 64px 0 58px;
+      transition: right .24s ease;
+    }
+
+    body.notes-open .stage { right: min(420px, 34vw); }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      padding: clamp(24px, 3vw, 44px) clamp(34px, 5.5vw, 94px);
+      overflow: auto;
+    }
+
+    .slide.active {
+      display: grid;
+      animation: reveal .32s ease both;
+    }
+
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .slide-inner {
+      width: min(1460px, 100%);
+      margin: auto;
+      align-self: center;
+    }
+
+    .kicker {
+      margin: 0 0 12px;
+      color: var(--green);
+      font-size: clamp(12px, 1.1vw, 16px);
+      font-weight: 850;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      margin-bottom: 24px;
+      max-width: 900px;
+      font-size: clamp(46px, 6.6vw, 104px);
+      line-height: .98;
+      letter-spacing: -.055em;
+    }
+
+    h2 {
+      margin-bottom: 14px;
+      font-size: clamp(34px, 4.4vw, 70px);
+      line-height: 1.05;
+      letter-spacing: -.045em;
+    }
+
+    h3 {
+      font-size: clamp(18px, 1.45vw, 26px);
+      line-height: 1.22;
+    }
+
+    .lede {
+      max-width: 920px;
+      color: var(--ink-dim);
+      font-size: clamp(18px, 1.7vw, 28px);
+      line-height: 1.55;
+    }
+
+    .green { color: var(--green); }
+    .amber { color: var(--amber); }
+    .red { color: var(--red); }
+    .muted { color: var(--ink-dim); }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(420px, .92fr);
+      gap: clamp(28px, 4vw, 74px);
+      align-items: center;
+    }
+
+    .split.wide-visual { grid-template-columns: minmax(340px, .7fr) minmax(0, 1.3fr); }
+
+    .hero-visual, .screenshot {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--paper-2);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-visual {
+      aspect-ratio: 16 / 10;
+    }
+
+    .hero-visual img, .screenshot img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .hero-visual::after, .screenshot::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-top: 28px;
+    }
+
+    .pill, .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 32px;
+      padding: 5px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink-dim);
+      background: rgba(255, 255, 255, .045);
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: .02em;
+    }
+
+    .pill::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .status-pill.live {
+      color: #06110a;
+      border-color: var(--green);
+      background: var(--green);
+    }
+
+    .status-pill.warn {
+      color: #211405;
+      border-color: var(--amber);
+      background: var(--amber);
+    }
+
+    .grid-3, .grid-4 {
+      display: grid;
+      gap: 18px;
+      margin-top: 36px;
+    }
+
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .grid-4 .card strong.value {
+      font-size: clamp(28px, 2.5vw, 40px);
+    }
+
+    .card {
+      min-height: 170px;
+      padding: 25px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(145deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
+    }
+
+    .card strong.value {
+      display: block;
+      margin: 7px 0 12px;
+      color: var(--green);
+      font-size: clamp(34px, 3.3vw, 54px);
+      line-height: 1;
+    }
+
+    .card p:last-child { margin-bottom: 0; }
+
+    .number {
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .14em;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 48px;
+    }
+
+    .flow-step {
+      position: relative;
+      min-height: 190px;
+      padding: 24px 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper-2);
+    }
+
+    .flow-step:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      z-index: 2;
+      top: 50%;
+      right: -22px;
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      color: var(--green);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: #0d100f;
+      transform: translateY(-50%);
+    }
+
+    .flow-step h3 { margin: 20px 0 9px; }
+    .flow-step p { color: var(--ink-dim); line-height: 1.5; }
+
+    .principle {
+      margin: 34px 0 0;
+      padding: 22px 26px;
+      border-left: 4px solid var(--green);
+      border-radius: 0 16px 16px 0;
+      color: var(--ink);
+      background: rgba(119, 230, 166, .08);
+      font-size: clamp(20px, 2vw, 31px);
+      line-height: 1.45;
+    }
+
+    .architecture {
+      display: grid;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .arch-row {
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .arch-label, .arch-content {
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--paper-2);
+    }
+
+    .arch-label {
+      display: grid;
+      align-items: center;
+      color: var(--green);
+      font-weight: 850;
+    }
+
+    .arch-content {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .module {
+      padding: 7px 11px;
+      border: 1px solid rgba(119, 230, 166, .28);
+      border-radius: 9px;
+      background: rgba(119, 230, 166, .07);
+      font-weight: 720;
+    }
+
+    .route-map {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 9px;
+      margin: 38px 0 26px;
+      counter-reset: route;
+    }
+
+    .route {
+      position: relative;
+      min-height: 134px;
+      padding: 20px 17px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--paper-2);
+      counter-increment: route;
+    }
+
+    .route::before {
+      content: counter(route, decimal-leading-zero);
+      display: block;
+      margin-bottom: 16px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .12em;
+    }
+
+    .route:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -10px;
+      z-index: 2;
+      width: 19px;
+      border-top: 2px solid var(--green);
+    }
+
+    .route strong { display: block; margin-bottom: 5px; }
+    .route span { color: var(--ink-dim); font-size: 14px; line-height: 1.45; }
+
+    .preflight {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .code-card {
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #090b0a;
+    }
+
+    .code-card small {
+      display: block;
+      margin-bottom: 9px;
+      color: var(--ink-dim);
+    }
+
+    code {
+      color: var(--green);
+      font: 600 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .demo-layout {
+      display: grid;
+      grid-template-columns: minmax(430px, .85fr) minmax(500px, 1.15fr);
+      gap: clamp(24px, 3vw, 46px);
+      align-items: center;
+    }
+
+    .split.wide-visual {
+      grid-template-columns: minmax(430px, .85fr) minmax(500px, 1.15fr);
+    }
+
+    .demo-layout h2, .split.wide-visual h2 {
+      font-size: clamp(32px, 3.3vw, 52px);
+    }
+
+    .demo-layout .click-order, .split.wide-visual .click-order {
+      margin-top: 16px;
+    }
+
+    .demo-layout .click-order li, .split.wide-visual .click-order li {
+      min-height: 42px;
+      margin-bottom: 7px;
+      padding: 9px 11px 9px 46px;
+      font-size: 14px;
+      line-height: 1.42;
+    }
+
+    .demo-layout .click-order li::before,
+    .split.wide-visual .click-order li::before {
+      top: 8px;
+      left: 10px;
+      width: 25px;
+      height: 25px;
+    }
+
+    .demo-layout .expect, .split.wide-visual .expect {
+      margin-top: 11px;
+      padding: 11px 14px;
+      font-size: 14px;
+    }
+
+    .demo-layout .screenshot { aspect-ratio: 16 / 10; }
+
+    .click-order {
+      margin: 24px 0 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: click;
+    }
+
+    .click-order li {
+      position: relative;
+      min-height: 48px;
+      margin: 0 0 9px;
+      padding: 12px 14px 12px 50px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--ink-dim);
+      background: rgba(255,255,255,.03);
+      counter-increment: click;
+    }
+
+    .click-order li::before {
+      content: counter(click);
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      display: grid;
+      place-items: center;
+      width: 27px;
+      height: 27px;
+      border-radius: 8px;
+      color: #08100b;
+      background: var(--green);
+      font-weight: 900;
+    }
+
+    .click-order b { color: var(--ink); }
+
+    .expect {
+      margin-top: 15px;
+      padding: 14px 16px;
+      border: 1px solid rgba(241, 189, 109, .3);
+      border-radius: 12px;
+      color: var(--amber);
+      background: rgba(241, 189, 109, .07);
+      line-height: 1.5;
+    }
+
+    .mock-dialog {
+      width: min(580px, 100%);
+      margin: 28px auto 0;
+      padding: 28px;
+      border: 1px solid rgba(241, 189, 109, .38);
+      border-radius: 20px;
+      background: linear-gradient(145deg, #20231e, #121511);
+      box-shadow: var(--shadow);
+    }
+
+    .mock-dialog .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .mock-dialog button {
+      padding: 10px 15px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--ink);
+      background: rgba(255,255,255,.05);
+    }
+
+    .mock-dialog button:last-child {
+      color: #08100b;
+      border-color: var(--amber);
+      background: var(--amber);
+      font-weight: 850;
+    }
+
+    .failure-stack {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 13px;
+      margin-top: 25px;
+    }
+
+    .failure-stack > div {
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--paper-2);
+    }
+
+    .failure-stack strong { display: block; margin-bottom: 6px; }
+
+    .test-pyramid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 38px;
+    }
+
+    .test-pyramid > div {
+      min-height: 170px;
+      padding: 23px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper-2);
+    }
+
+    .test-pyramid strong {
+      display: block;
+      margin: 12px 0;
+      font-size: 22px;
+    }
+
+    .footer-controls {
+      position: fixed;
+      inset: auto 0 0 0;
+      z-index: 32;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      min-height: 58px;
+      padding: 0 28px;
+      border-top: 1px solid var(--line);
+      background: rgba(7, 9, 8, .9);
+      backdrop-filter: blur(18px);
+    }
+
+    .counter { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+    .key-hints {
+      display: flex;
+      gap: 14px;
+      color: var(--ink-dim);
+      font-size: 12px;
+    }
+
+    kbd {
+      padding: 2px 6px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      color: var(--ink);
+      background: var(--paper-2);
+      box-shadow: inset 0 -1px rgba(255,255,255,.08);
+      font: inherit;
+    }
+
+    .nav-buttons {
+      justify-self: end;
+      display: flex;
+      gap: 8px;
+    }
+
+    .nav-buttons button {
+      min-width: 80px;
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--ink);
+      background: var(--paper-2);
+      cursor: pointer;
+    }
+
+    .nav-buttons .next { color: #06110a; border-color: var(--green); background: var(--green); font-weight: 850; }
+
+    .notes-panel {
+      position: fixed;
+      z-index: 35;
+      inset: 64px 0 58px auto;
+      width: min(420px, 34vw);
+      padding: 26px;
+      overflow: auto;
+      border-left: 1px solid var(--line);
+      background: #111512;
+      transform: translateX(100%);
+      transition: transform .24s ease;
+    }
+
+    body.notes-open .notes-panel { transform: none; }
+
+    .notes-panel h2 {
+      margin-bottom: 7px;
+      font-size: 24px;
+      letter-spacing: -.02em;
+    }
+
+    .notes-panel .timer {
+      margin-bottom: 20px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 850;
+      letter-spacing: .08em;
+    }
+
+    .notes-content {
+      color: #dad8d1;
+      font-size: 16px;
+      line-height: 1.75;
+    }
+
+    .notes-content p { margin-bottom: 1em; }
+
+    .script-language {
+      font-family: Inter, "WenQuanYi Zen Hei", ui-sans-serif, system-ui,
+        -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .script-language + .script-language {
+      margin-top: 24px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+    }
+
+    .script-language h3 {
+      margin: 0 0 10px;
+      color: var(--green);
+      font-size: 13px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .speaker-script { display: none; }
+
+    .cover-slide {
+      padding: 0;
+      grid-template-columns: minmax(0, .95fr) minmax(0, 1.2fr);
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .cover-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: clamp(44px, 6vw, 110px);
+      padding-block: clamp(36px, 4.5vw, 82px);
+      background:
+        linear-gradient(90deg, #0c100e 85%, transparent),
+        radial-gradient(circle at 18% 20%, rgba(119,230,166,.12), transparent 26%);
+    }
+
+    .cover-copy h1 { font-size: clamp(48px, 5.8vw, 92px); }
+    .cover-art { min-width: 0; min-height: 0; }
+    .cover-art img { width: 100%; height: 100%; object-fit: cover; }
+
+    body.notes-open .cover-copy h1 {
+      font-size: clamp(40px, 4.2vw, 68px);
+    }
+
+    .final-line {
+      max-width: 1100px;
+      margin: 48px 0 0;
+      color: var(--ink);
+      font-size: clamp(28px, 3.7vw, 58px);
+      line-height: 1.22;
+      letter-spacing: -.035em;
+    }
+
+    .source-note {
+      margin-top: 16px;
+      color: var(--ink-dim);
+      font-size: 12px;
+    }
+
+    @media (max-width: 1050px) {
+      .split, .split.wide-visual, .demo-layout { grid-template-columns: 1fr; }
+      .grid-4, .test-pyramid { grid-template-columns: repeat(2, 1fr); }
+      .flow { grid-template-columns: repeat(3, 1fr); }
+      .route-map { grid-template-columns: repeat(3, 1fr); }
+      .flow-step::after, .route::after { display: none; }
+      body.notes-open .stage { right: 0; }
+      .notes-panel { width: min(520px, 88vw); }
+      .cover-slide { grid-template-columns: 1fr; }
+      .cover-art { display: none; }
+    }
+
+    @media (max-width: 760px) {
+      .topbar { grid-template-columns: 1fr auto; padding: 0 14px; }
+      .progress { display: none; }
+      .live-link { display: none; }
+      .stage { inset-top: 64px; }
+      .slide { padding: 28px 20px; }
+      .grid-3, .grid-4, .flow, .route-map, .preflight,
+      .failure-stack, .test-pyramid { grid-template-columns: 1fr; }
+      .arch-row { grid-template-columns: 1fr; }
+      .key-hints { display: none; }
+      .footer-controls { padding: 0 14px; grid-template-columns: 1fr auto; }
+      .nav-buttons { grid-column: 2; }
+      .counter { grid-column: 1; grid-row: 1; }
+      .notes-panel { padding: 22px; }
+    }
+
+    @media print {
+      html, body { overflow: visible; background: white; color: black; }
+      .topbar, .footer-controls, .notes-panel { display: none !important; }
+      .deck, .stage { position: static; background: white; }
+      .slide, .slide.active {
+        position: relative;
+        display: block;
+        min-height: 100vh;
+        break-after: page;
+        color: #111;
+        background: white;
+      }
+      .speaker-script {
+        display: block;
+        margin-top: 28px;
+        padding: 20px;
+        border: 1px solid #ccc;
+        color: #222;
+      }
+      .card, .flow-step, .route, .arch-label, .arch-content, .code-card,
+      .click-order li, .test-pyramid > div, .failure-stack > div {
+        color: #111;
+        border-color: #ccc;
+        background: #f7f7f4;
+      }
+      .muted, .lede, .flow-step p, .route span, .click-order li { color: #555; }
+      .green, .kicker, .number, code { color: #087343; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" aria-label="TradeFlow Demo speaker deck">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">T</span><span>TradeFlow · Demo Story</span></div>
+      <nav class="progress" aria-label="Slide navigation"></nav>
+      <div class="top-actions">
+        <button class="ghost-button" id="notesToggle" type="button" aria-pressed="false">Script N</button>
+        <button class="ghost-button" id="fullscreenToggle" type="button">Fullscreen F</button>
+        <a class="live-link" href="http://localhost:3100" target="_blank" rel="noreferrer">Open Demo ↗</a>
+      </div>
+    </header>
+
+    <section class="stage">
+      <article class="slide cover-slide active" data-title="Cover" data-time="00:15">
+        <div class="cover-copy">
+          <p class="kicker">Group 5 · Give me five</p>
+          <h1>From one trade to a trusted portfolio</h1>
+          <p class="lede">A four-minute live demo: book, replay, value, and explain</p>
+          <div class="hero-meta">
+            <span class="pill">Trade facts</span>
+            <span class="pill">Replayable positions</span>
+            <span class="pill">Explainable quotes</span>
+            <span class="pill">Consistent P&amp;L</span>
+          </div>
+        </div>
+        <div class="cover-art">
+          <img src="assets/tradeflow-cover.png" alt="Abstract technology illustration of trade validation, position calculation, market data, and profit and loss">
+        </div>
+        <aside class="speaker-script">
+          <section class="script-language">
+            <h3>English</h3>
+            <p>Hello, we are Group 5. In the next four minutes, we will follow one AAPL trade from the dashboard to booking, position replay, audit-preserving deletion, and transparent market valuation.</p>
+          </section>
+          <section class="script-language" lang="zh-CN">
+            <h3>中文</h3>
+            <p>大家好，我们是第五组。接下来四分钟，我们会用一笔 AAPL 交易，现场展示仪表盘、交易登记、持仓重算、审计保留删除，以及透明的市场估值。</p>
+          </section>
+        </aside>
+      </article>
+
+      <article class="slide" data-title="Click 1 · Baseline" data-time="00:40">
+        <div class="slide-inner demo-layout">
+          <div>
+            <p class="kicker">Demo · Step 01</p>
+            <h2>Establish a trusted baseline</h2>
+            <ol class="click-order">
+              <li>Set the sidebar language to <b>English</b></li>
+              <li>Click <b>Dashboard</b></li>
+              <li>Select account <b>Demo Growth</b></li>
+              <li>Click <b>Refresh</b> at the top right</li>
+              <li>Open <b>Accounts → Demo Growth → View positions</b></li>
+            </ol>
+            <p class="expect"><b>Expected:</b> AAPL quantity 8 and MSFT quantity 3, isolated to Demo Growth; one gain and one loss; source flags are explicit.</p>
+          </div>
+          <figure class="screenshot">
+            <img src="assets/dashboard.png" alt="Demo Growth dashboard showing market value and unrealized profit and loss for AAPL and MSFT">
+          </figure>
+        </div>
+        <aside class="speaker-script">
+          <section class="script-language">
+            <h3>English</h3>
+            <p>The backend is connected. On Dashboard, select Demo Growth and refresh. We start with AAPL quantity 8 and MSFT quantity 3, with both gain and loss examples. The source flags are explicit: the default demo says MOCK rather than pretending generated prices are live. Open Accounts and View positions for Demo Growth to confirm the same account-level quantities. Remember AAPL at 8; that is our baseline.</p>
+          </section>
+          <section class="script-language" lang="zh-CN">
+            <h3>中文</h3>
+            <p>左下角显示后端已连接。在仪表盘选择 Demo Growth 并刷新。当前 AAPL 数量是 8，MSFT 是 3，同时有盈利和亏损示例。行情来源明确标记为 MOCK，不会把生成价格冒充实时数据。进入账户页面，查看 Demo Growth 的持仓，可以确认相同的账户级数量。请记住 AAPL 的基线是 8。</p>
+          </section>
+        </aside>
+      </article>
+
+      <article class="slide" data-title="Click 2 · Book a trade" data-time="00:50">
+        <div class="slide-inner demo-layout">
+          <div>
+            <p class="kicker">Demo · Step 02</p>
+            <h2>Book one share of AAPL</h2>
+            <ol class="click-order">
+              <li>Click <b>Activity</b> in the sidebar</li>
+              <li>Select <b>Demo Growth</b> and side <b>BUY</b></li>
+              <li>Enter <b>AAPL</b> and click the search result</li>
+              <li>Confirm <b>Verified: AAPL</b> appears</li>
+              <li>Enter quantity <b>1</b> and price <b>100</b></li>
+              <li>Keep the current execution time and click <b>Book BUY trade</b></li>
+            </ol>
+            <p class="expect"><b>Expected:</b> “AAPL BUY trade booked successfully.” appears, with a new BOOKED row at the top of the ledger.</p>
+          </div>
+          <figure class="screenshot">
+            <img src="assets/activity.png" alt="Activity page with the trade booking form on the left and the auditable trade ledger on the right">
+          </figure>
+        </div>
+        <aside class="speaker-script">
+          <section class="script-language">
+            <h3>English</h3>
+            <p>Open Activity, select Demo Growth, and choose BUY. Type AAPL, then select the search result; the form requires “Verified: AAPL,” so the ticker is not an arbitrary string. Enter quantity 1 and price 100, keep the current execution time, and click Book BUY trade. The success message appears and a new BOOKED row is added to the ledger. Execution time records when the trade happened; operation time records when the system saved it.</p>
+          </section>
+          <section class="script-language" lang="zh-CN">
+            <h3>中文</h3>
+            <p>进入交易活动，选择 Demo Growth 和 BUY。输入 AAPL 后必须点击搜索结果，界面出现“Verified: AAPL”才能提交，所以股票代码不是任意字符串。数量输入 1，价格输入 100，保留当前成交时间，然后点击 Book BUY trade。成功提示出现，账本顶部新增一条 BOOKED 记录。成交时间表示交易发生时间，操作时间表示系统保存时间。</p>
+          </section>
+        </aside>
+      </article>
+
+      <article class="slide" data-title="Click 3 · Replay and audit" data-time="00:55">
+        <div class="slide-inner split wide-visual">
+          <div>
+            <p class="kicker">Demo · Step 03</p>
+            <h2>The number changes. The evidence remains.</h2>
+            <ol class="click-order">
+              <li><b>Accounts → Demo Growth → View positions</b></li>
+              <li>Confirm AAPL moves from <b>8 → 9</b></li>
+              <li>Open <b>Activity</b> and click <b>Delete</b> on the new AAPL row</li>
+              <li>Accept the browser confirmation dialog</li>
+              <li>Observe <b>CANCELLED / DELETED</b> on the retained row</li>
+              <li>View positions again and confirm AAPL <b>9 → 8</b></li>
+            </ol>
+            <p class="expect"><b>Key result:</b> deletion changes the effective business facts, so the position recovers, but the ledger row remains as audit evidence.</p>
+          </div>
+          <div>
+            <figure class="screenshot">
+              <img src="assets/dashboard-full.png" alt="Full dashboard with position profit and loss, valuation history, and recent activity">
+            </figure>
+            <p class="source-note">Then return to Dashboard and click Refresh to see market value and P&amp;L recalculate with the restored quantity.</p>
+          </div>
+        </div>
+        <aside class="speaker-script">
+          <section class="script-language">
+            <h3>English</h3>
+            <p>Return to Demo Growth positions. AAPL moves from 8 to 9 because the new BOOKED trade is now included in replay. Go back to Activity, delete that new row, and confirm. The row is not physically removed; it remains as CANCELLED with audit reason DELETED. View positions again and AAPL returns from 9 to 8. The effective number changes, but the evidence remains. Refresh Dashboard and P&amp;L recalculates from the restored quantity.</p>
+          </section>
+          <section class="script-language" lang="zh-CN">
+            <h3>中文</h3>
+            <p>回到 Demo Growth 持仓，AAPL 从 8 变成 9，因为新的 BOOKED 交易已经参与重放。再回到交易活动，删除刚才新增的记录并确认。记录不会被物理删除，而是保留为 CANCELLED，审计原因是 DELETED。再次查看持仓，AAPL 从 9 恢复为 8。有效数字发生变化，但证据仍然保留。刷新仪表盘后，盈亏也会按恢复后的数量重新计算。</p>
+          </section>
+        </aside>
+      </article>
+
+      <article class="slide" data-title="Click 4 · Quote status" data-time="00:45">
+        <div class="slide-inner demo-layout">
+          <div>
+            <p class="kicker">Demo · Step 04</p>
+            <h2>When quotes fail, the system stays honest</h2>
+            <ol class="click-order">
+              <li>Click <b>Market Data</b> in the sidebar</li>
+              <li>Select account <b>Demo Growth</b></li>
+              <li>Click <b>Refresh AAPL</b> and point out the source flags</li>
+              <li class="muted">Finnhub demo: click <b>Simulate outage</b></li>
+              <li class="muted">Refresh AAPL again and observe <b>CACHED / STALE</b></li>
+              <li class="muted">Refresh Dashboard, then return and click <b>Restore provider</b></li>
+            </ol>
+            <p class="expect"><b>Default Mock:</b> explain the MOCK label and skip outage controls.<br><b>Finnhub demo:</b> normal is FINNHUB / LIVE; during outage the retained price is explicitly CACHED / STALE.</p>
+          </div>
+          <figure class="screenshot">
+            <img src="assets/market-data.png" alt="Market Data page showing provider disclosure, position quotes, and refresh actions">
+          </figure>
+        </div>
+        <aside class="speaker-script">
+          <section class="script-language">
+            <h3>English</h3>
+            <p>Open Market Data and refresh AAPL. In the default demo, the page explicitly says MOCK and not live market data. In Finnhub demo mode, a normal quote shows FINNHUB and LIVE. Simulate an outage and refresh again: a retained Redis quote is shown as CACHED and STALE, including a warning on Dashboard. Without cache, the API returns a clear 503; it never switches silently to Mock or invents a zero price. Finally, restore the provider.</p>
+          </section>
+          <section class="script-language" lang="zh-CN">
+            <h3>中文</h3>
+            <p>进入市场数据并刷新 AAPL。默认演示会明确显示 MOCK，并说明不是实时行情。在 Finnhub 演示模式下，正常报价显示 FINNHUB 和 LIVE。模拟故障后再次刷新，Redis 中保留的报价会明确标记为 CACHED 和 STALE，仪表盘也会显示警告。如果没有缓存，接口会返回清晰的 503，不会偷偷切换到 Mock，也不会编造零价格。最后恢复数据源。</p>
+          </section>
+        </aside>
+      </article>
+
+      <article class="slide" data-title="Demo result" data-time="00:15">
+        <div class="slide-inner">
+          <p class="kicker">Demo result</p>
+          <h2>One trade proved the full loop</h2>
+          <div class="grid-3">
+            <section class="card"><span class="number">01</span><h3>Booked</h3><p class="muted">A verified AAPL trade became a BOOKED business fact.</p></section>
+            <section class="card"><span class="number">02</span><h3>Replayed</h3><p class="muted">The position moved 8 → 9 → 8 while audit evidence remained.</p></section>
+            <section class="card"><span class="number">03</span><h3>Valued honestly</h3><p class="muted">Every quote exposed its source, cache use, and staleness.</p></section>
+          </div>
+          <p class="final-line">Trades are facts. <span class="green">Trust comes from explainable change.</span></p>
+          <div class="hero-meta">
+            <span class="status-pill live">Q &amp; A</span>
+            <span class="status-pill">UI · http://localhost:3100</span>
+            <span class="status-pill">Swagger · http://localhost:8180/swagger-ui.html</span>
+          </div>
+        </div>
+        <aside class="speaker-script">
+          <section class="script-language">
+            <h3>English</h3>
+            <p>In one loop, we booked a verified trade, replayed the position, preserved the audit trail, and exposed quote quality. That is TradeFlow. Thank you.</p>
+          </section>
+          <section class="script-language" lang="zh-CN">
+            <h3>中文</h3>
+            <p>通过一条完整链路，我们登记了已验证交易、重算了持仓、保留了审计记录，并明确展示了行情质量。这就是 TradeFlow。谢谢大家。</p>
+          </section>
+        </aside>
+      </article>
+    </section>
+
+    <aside class="notes-panel" aria-label="Speaker script panel">
+      <h2 id="notesTitle">Speaker script</h2>
+      <div class="timer" id="notesTimer"></div>
+      <div class="notes-content" id="notesContent"></div>
+    </aside>
+
+    <footer class="footer-controls">
+      <div class="counter" id="counter">01 / 06</div>
+      <div class="key-hints"><span><kbd>←</kbd> <kbd>→</kbd> Navigate</span><span><kbd>N</kbd> Script</span><span><kbd>F</kbd> Fullscreen</span></div>
+      <div class="nav-buttons">
+        <button id="prevButton" type="button">Previous</button>
+        <button class="next" id="nextButton" type="button">Next</button>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      const slides = [...document.querySelectorAll('.slide')]
+      const progress = document.querySelector('.progress')
+      const counter = document.querySelector('#counter')
+      const prev = document.querySelector('#prevButton')
+      const next = document.querySelector('#nextButton')
+      const notesToggle = document.querySelector('#notesToggle')
+      const fullscreenToggle = document.querySelector('#fullscreenToggle')
+      const notesTitle = document.querySelector('#notesTitle')
+      const notesTimer = document.querySelector('#notesTimer')
+      const notesContent = document.querySelector('#notesContent')
+      let index = Math.max(0, Math.min(slides.length - 1, Number(location.hash.slice(1)) - 1 || 0))
+
+      const dots = slides.map((slide, slideIndex) => {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.setAttribute('aria-label', `Go to slide ${slideIndex + 1}: ${slide.dataset.title}`)
+        button.addEventListener('click', () => show(slideIndex))
+        progress.append(button)
+        return button
+      })
+
+      function show(nextIndex) {
+        index = Math.max(0, Math.min(slides.length - 1, nextIndex))
+        slides.forEach((slide, slideIndex) => slide.classList.toggle('active', slideIndex === index))
+        dots.forEach((dot, slideIndex) => dot.classList.toggle('active', slideIndex === index))
+        const slide = slides[index]
+        counter.textContent = `${String(index + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`
+        prev.disabled = index === 0
+        next.textContent = index === slides.length - 1 ? 'Start over' : 'Next'
+        notesTitle.textContent = slide.dataset.title || 'Speaker script'
+        notesTimer.textContent = `Suggested time ${slide.dataset.time || '—'} · choose one language`
+        notesContent.innerHTML = slide.querySelector('.speaker-script')?.innerHTML || '<p>No speaker script for this slide.</p>'
+        document.title = `${String(index + 1).padStart(2, '0')} · ${slide.dataset.title} — TradeFlow Demo`
+        history.replaceState(null, '', `#${index + 1}`)
+        slide.scrollTop = 0
+      }
+
+      function toggleNotes() {
+        const open = document.body.classList.toggle('notes-open')
+        notesToggle.setAttribute('aria-pressed', String(open))
+        notesToggle.textContent = open ? 'Hide script N' : 'Script N'
+      }
+
+      async function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen?.()
+        } else {
+          await document.exitFullscreen?.()
+        }
+      }
+
+      prev.addEventListener('click', () => show(index - 1))
+      next.addEventListener('click', () => show(index === slides.length - 1 ? 0 : index + 1))
+      notesToggle.addEventListener('click', toggleNotes)
+      fullscreenToggle.addEventListener('click', toggleFullscreen)
+      document.addEventListener('fullscreenchange', () => {
+        fullscreenToggle.textContent = document.fullscreenElement ? 'Exit fullscreen F' : 'Fullscreen F'
+      })
+
+      document.addEventListener('keydown', (event) => {
+        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return
+        if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
+          event.preventDefault()
+          show(index + 1)
+        } else if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+          event.preventDefault()
+          show(index - 1)
+        } else if (event.key === 'Home') {
+          show(0)
+        } else if (event.key === 'End') {
+          show(slides.length - 1)
+        } else if (event.key.toLowerCase() === 'n') {
+          toggleNotes()
+        } else if (event.key.toLowerCase() === 'f') {
+          toggleFullscreen()
+        } else if (event.key === 'Escape' && document.body.classList.contains('notes-open')) {
+          toggleNotes()
+        }
+      })
+
+      show(index)
+    })()
+  </script>
+</body>
+</html>

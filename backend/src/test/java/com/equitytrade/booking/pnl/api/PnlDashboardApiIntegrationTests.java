@@ -90,6 +90,45 @@ class PnlDashboardApiIntegrationTests {
     }
 
     @Test
+    void preservesExactWeightedCostThroughSellCancellationAndPnl()
+            throws Exception {
+        stubQuote("AAPL", "180", false, false);
+        trade(PRIMARY_ACCOUNT_ID, "AAPL", "BUY", "10", "100", 30);
+        trade(PRIMARY_ACCOUNT_ID, "AAPL", "BUY", "10", "200", 20);
+        String sellId = trade(
+                PRIMARY_ACCOUNT_ID,
+                "AAPL",
+                "SELL",
+                "5",
+                "250",
+                10);
+
+        mockMvc.perform(get("/api/pnl")
+                        .param("accountId", PRIMARY_ACCOUNT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].quantity").value(15))
+                .andExpect(jsonPath("$.items[0].averageCost").value(150))
+                .andExpect(jsonPath("$.items[0].costBasis").value(2250))
+                .andExpect(jsonPath("$.items[0].marketValue").value(2700))
+                .andExpect(jsonPath("$.items[0].unrealizedPnl").value(450))
+                .andExpect(jsonPath("$.items[0].pnlPercent").value(20));
+
+        mockMvc.perform(post("/api/trades/{id}/cancel", sellId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/pnl")
+                        .param("accountId", PRIMARY_ACCOUNT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].quantity").value(20))
+                .andExpect(jsonPath("$.items[0].averageCost").value(150))
+                .andExpect(jsonPath("$.items[0].costBasis").value(3000))
+                .andExpect(jsonPath("$.items[0].marketPrice").value(180))
+                .andExpect(jsonPath("$.items[0].marketValue").value(3600))
+                .andExpect(jsonPath("$.items[0].unrealizedPnl").value(600))
+                .andExpect(jsonPath("$.items[0].pnlPercent").value(20));
+    }
+
+    @Test
     void isolatesAccountsAndAggregatesTheSameTicker()
             throws Exception {
         String secondAccount = createAccount("Second PnL");

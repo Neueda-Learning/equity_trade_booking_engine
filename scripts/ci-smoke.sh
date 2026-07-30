@@ -526,6 +526,8 @@ jq --exit-status '
   ([.items[].valuationDate] == ([.items[].valuationDate] | sort)) and
   all(.items[]; .scopeType == "ALL" and .accountId == null)
 ' "$LOG_DIR/history-all.json" >/dev/null
+readonly ALL_HISTORY_COUNT="$(jq '.items | length' \
+  "$LOG_DIR/history-all.json")"
 
 curl --fail --silent --show-error \
   "$BACKEND_URL/api/dashboard/history?accountId=$ACCOUNT_ID&range=ALL" \
@@ -537,6 +539,8 @@ jq --exit-status --arg accountId "$ACCOUNT_ID" '
     .scopeType == "ACCOUNT" and .accountId == $accountId
   )
 ' "$LOG_DIR/history-account.json" >/dev/null
+readonly ACCOUNT_HISTORY_COUNT="$(jq '.items | length' \
+  "$LOG_DIR/history-account.json")"
 
 jq --sort-keys '[.items[].id] | sort' \
   "$LOG_DIR/history-all.json" \
@@ -675,10 +679,11 @@ readonly VALID_TOTAL="$(jq '.totalElements' "$LOG_DIR/trades-after-restart.json"
 curl --fail --silent --show-error \
   "$BACKEND_URL/api/dashboard/history?range=ALL" \
   >"$LOG_DIR/history-after-restart.json"
-jq --exit-status '
+jq --exit-status --argjson expected "$ALL_HISTORY_COUNT" '
   .range == "ALL" and
   .source == "LOCAL" and
-  (.items | length) >= 1
+  (.items | length) == $expected and
+  $expected > 0
 ' "$LOG_DIR/history-after-restart.json" >/dev/null
 jq --sort-keys '[.items[].id] | sort' \
   "$LOG_DIR/history-after-restart.json" \
@@ -692,10 +697,13 @@ compose exec -T redis redis-cli FLUSHDB >/dev/null
 curl --fail --silent --show-error \
   "$BACKEND_URL/api/dashboard/history?accountId=$ACCOUNT_ID&range=ALL" \
   >"$LOG_DIR/history-after-redis-flush.json"
-jq --exit-status --arg accountId "$ACCOUNT_ID" '
+jq --exit-status \
+  --arg accountId "$ACCOUNT_ID" \
+  --argjson expected "$ACCOUNT_HISTORY_COUNT" '
   .range == "ALL" and
   .source == "LOCAL" and
-  (.items | length) >= 1 and
+  (.items | length) == $expected and
+  $expected > 0 and
   all(.items[]; .accountId == $accountId)
 ' "$LOG_DIR/history-after-redis-flush.json" >/dev/null
 jq --sort-keys '[.items[].id] | sort' \

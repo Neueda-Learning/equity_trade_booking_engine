@@ -3,18 +3,39 @@ import { expect, test, type Page } from '@playwright/test'
 test('complete booking, P&L, cancellation, and outage journey', async ({
   page,
 }, testInfo) => {
+  const accountName = `E2E ${testInfo.project.name}`
+  const ticker = testInfo.project.name.startsWith('mobile') ? 'MSFT' : 'AAPL'
+  const unavailableTicker = testInfo.project.name.startsWith('mobile')
+    ? 'SPY'
+    : 'QQQ'
   const browserMessages: string[] = []
+  const unexpectedServerErrors: string[] = []
   page.on('console', (message) => {
     if (message.type() === 'error' || message.type() === 'warning') {
+      if (
+        message.type() === 'error'
+        && message.text().includes('status of 503')
+      ) {
+        return
+      }
       browserMessages.push(`${message.type()}: ${message.text()}`)
     }
   })
   page.on('pageerror', (error) =>
     browserMessages.push(`pageerror: ${error.message}`),
   )
+  page.on('response', (response) => {
+    if (response.status() < 500) return
+    const path = new URL(response.url()).pathname
+    if (
+      response.status() === 503
+      && path === `/api/market-data/quotes/${unavailableTicker}`
+    ) {
+      return
+    }
+    unexpectedServerErrors.push(`${response.status()} ${path}`)
+  })
 
-  const accountName = `E2E ${testInfo.project.name}`
-  const ticker = testInfo.project.name.startsWith('mobile') ? 'MSFT' : 'AAPL'
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Dashboard' }))
     .toBeVisible()
@@ -131,12 +152,21 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   })
   await page.getByRole('button', { name: 'Simulate outage' }).click()
   await expect(page.getByText('Provider outage: SIMULATED')).toBeVisible()
-  await page.getByRole('button', { name: `Refresh ${ticker}` }).click()
   const staleQuote = quoteRow(page, ticker)
   await expect(staleQuote).toContainText('STALE')
   await expect(staleQuote).toContainText('CACHED')
   await expect(staleQuote).toContainText('123.46')
   await expect(staleQuote).not.toContainText('LIVE')
+
+  await page.getByLabel('Ticker search').fill(unavailableTicker)
+  await page.getByRole('button', { name: 'Search' }).click()
+  await expect(
+    page.getByText(
+      'Demo outage is enabled and no cached quote is available.',
+    ),
+  ).toBeVisible()
+  await expect(quoteRow(page, unavailableTicker)).toContainText('Unavailable')
+  await expect(staleQuote).toContainText('STALE')
 
   await navigate(page, 'Dashboard')
   await accountSelector(page).selectOption({
@@ -150,12 +180,15 @@ test('complete booking, P&L, cancellation, and outage journey', async ({
   await navigate(page, 'Market Data')
   await page.getByRole('button', { name: 'Restore provider' }).click()
   await expect(page.getByText('Provider outage: OFF')).toBeVisible()
-  await page.getByRole('button', { name: `Refresh ${ticker}` }).click()
   const restoredQuote = quoteRow(page, ticker)
   await expect(restoredQuote).toContainText('LIVE')
   await expect(restoredQuote).not.toContainText('STALE')
   await expectNoPageOverflow(page)
 
+  expect(
+    unexpectedServerErrors,
+    unexpectedServerErrors.join('\n'),
+  ).toEqual([])
   expect(browserMessages, browserMessages.join('\n')).toEqual([])
 })
 

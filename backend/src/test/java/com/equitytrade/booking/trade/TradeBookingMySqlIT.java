@@ -36,6 +36,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,6 +74,9 @@ class TradeBookingMySqlIT {
         registry.add("spring.datasource.password", MYSQL::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("spring.flyway.enabled", () -> "true");
+        registry.add(
+                "dashboard.snapshots.scheduling-enabled",
+                () -> "false");
     }
 
     @Autowired
@@ -375,12 +379,12 @@ class TradeBookingMySqlIT {
             List<Future<Integer>> results = List.of(
                     executor.submit(() -> concurrentSell(ready, start)),
                     executor.submit(() -> concurrentSell(ready, start)));
-            ready.await();
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
             start.countDown();
             List<Integer> statuses = results.stream()
                     .map(result -> {
                         try {
-                            return result.get();
+                            return result.get(10, TimeUnit.SECONDS);
                         } catch (Exception exception) {
                             throw new AssertionError(exception);
                         }
@@ -621,10 +625,12 @@ class TradeBookingMySqlIT {
                             contentHash,
                             ready,
                             start));
-            ready.await();
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
             start.countDown();
 
-            assertThat(List.of(first.get(), second.get()))
+            assertThat(List.of(
+                            first.get(10, TimeUnit.SECONDS),
+                            second.get(10, TimeUnit.SECONDS)))
                     .containsExactlyInAnyOrder(201, 409);
         }
         assertThat(jdbcTemplate.queryForObject(
@@ -635,6 +641,186 @@ class TradeBookingMySqlIT {
                         """,
                 Integer.class,
                 contentHash)).isEqualTo(1);
+    }
+
+    @Test
+    @Order(11)
+    void concurrentSellAndBuyCancellationNeverCreateNegativePosition()
+            throws Exception {
+        Instant buyTime = Instant.now().minusSeconds(30);
+        MvcResult buy = mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(
+                                PRIMARY_ACCOUNT_ID,
+                                "JPM",
+                                "BUY",
+                                new BigDecimal("10"),
+                                BigDecimal.TEN,
+                                buyTime)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String buyId = objectMapper.readTree(
+                buy.getResponse().getContentAsString()).path("id").asText();
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (ExecutorService executor =
+                     Executors.newVirtualThreadPerTaskExecutor()) {
+            Future<Integer> sell = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return mockMvc.perform(post("/api/trades")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(tradeRequest(
+                                        PRIMARY_ACCOUNT_ID,
+                                        "JPM",
+                                        "SELL",
+                                        new BigDecimal("6"),
+                                        new BigDecimal("12"),
+                                        buyTime.plusSeconds(5))))
+                        .andReturn().getResponse().getStatus();
+            });
+            Future<Integer> cancel = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return mockMvc.perform(post(
+                                "/api/trades/{id}/cancel",
+                                buyId))
+                        .andReturn().getResponse().getStatus();
+            });
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat(List.of(
+                            sell.get(10, TimeUnit.SECONDS),
+                            cancel.get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(201, 409);
+        }
+
+        List<BigDecimal> quantities = jdbcTemplate.query(
+                """
+                        SELECT side, quantity
+                        FROM trades
+                        WHERE account_id = ?
+                          AND ticker = 'JPM'
+                          AND status = 'BOOKED'
+                        ORDER BY executed_at, created_at, id
+                        """,
+                (resultSet, rowNumber) -> "BUY".equals(
+                        resultSet.getString("side"))
+                        ? resultSet.getBigDecimal("quantity")
+                        : resultSet.getBigDecimal("quantity").negate(),
+                PRIMARY_ACCOUNT_ID);
+        BigDecimal running = BigDecimal.ZERO;
+        for (BigDecimal quantity : quantities) {
+            running = running.add(quantity);
+            assertThat(running).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+        }
+    }
+
+    @Test
+    @Order(12)
+    void concurrentCancellationIsIdempotentAndKeepsFirstTimestamp()
+            throws Exception {
+        MvcResult buy = mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(
+                                PRIMARY_ACCOUNT_ID,
+                                "KO",
+                                "BUY",
+                                BigDecimal.ONE,
+                                BigDecimal.TEN,
+                                Instant.now().minusSeconds(10))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String tradeId = objectMapper.readTree(
+                buy.getResponse().getContentAsString()).path("id").asText();
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (ExecutorService executor =
+                     Executors.newVirtualThreadPerTaskExecutor()) {
+            Future<MvcResult> first = executor.submit(() ->
+                    concurrentCancel(tradeId, ready, start));
+            Future<MvcResult> second = executor.submit(() ->
+                    concurrentCancel(tradeId, ready, start));
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            MvcResult firstResult = first.get(10, TimeUnit.SECONDS);
+            MvcResult secondResult = second.get(10, TimeUnit.SECONDS);
+            assertThat(firstResult.getResponse().getStatus()).isEqualTo(200);
+            assertThat(secondResult.getResponse().getStatus()).isEqualTo(200);
+            assertThat(objectMapper.readTree(
+                            firstResult.getResponse().getContentAsString())
+                    .path("cancelledAt").asText())
+                    .isEqualTo(objectMapper.readTree(
+                                    secondResult.getResponse()
+                                            .getContentAsString())
+                            .path("cancelledAt").asText());
+        }
+
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM trades
+                        WHERE id = ?
+                          AND status = 'CANCELLED'
+                          AND cancelled_at IS NOT NULL
+                        """,
+                Integer.class,
+                tradeId)).isEqualTo(1);
+    }
+
+    @Test
+    @Order(13)
+    void concurrentSellsInDifferentAccountsRemainIsolated()
+            throws Exception {
+        String firstAccount = createAccount(
+                "Concurrency One", "Broker", "1001");
+        String secondAccount = createAccount(
+                "Concurrency Two", "Broker", "1002");
+        Instant buyTime = Instant.now().minusSeconds(30);
+        for (String accountId : List.of(firstAccount, secondAccount)) {
+            mockMvc.perform(post("/api/trades")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(tradeRequest(
+                                    accountId,
+                                    "TSLA",
+                                    "BUY",
+                                    new BigDecimal("10"),
+                                    BigDecimal.TEN,
+                                    buyTime)))
+                    .andExpect(status().isCreated());
+        }
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (ExecutorService executor =
+                     Executors.newVirtualThreadPerTaskExecutor()) {
+            Future<Integer> first = executor.submit(() ->
+                    concurrentSellForAccount(
+                            firstAccount, ready, start));
+            Future<Integer> second = executor.submit(() ->
+                    concurrentSellForAccount(
+                            secondAccount, ready, start));
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat(List.of(
+                            first.get(10, TimeUnit.SECONDS),
+                            second.get(10, TimeUnit.SECONDS)))
+                    .containsExactly(201, 201);
+        }
+
+        for (String accountId : List.of(firstAccount, secondAccount)) {
+            mockMvc.perform(get("/api/positions")
+                            .param("accountId", accountId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath(
+                            "$[?(@.ticker == 'TSLA')].quantity")
+                            .value(2));
+        }
     }
 
     private int concurrentSell(
@@ -654,6 +840,36 @@ class TradeBookingMySqlIT {
                 .andReturn()
                 .getResponse()
                 .getStatus();
+    }
+
+    private int concurrentSellForAccount(
+            String accountId,
+            CountDownLatch ready,
+            CountDownLatch start) throws Exception {
+        ready.countDown();
+        start.await();
+        return mockMvc.perform(post("/api/trades")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tradeRequest(
+                                accountId,
+                                "TSLA",
+                                "SELL",
+                                new BigDecimal("8"),
+                                new BigDecimal("12"),
+                                Instant.now().minusSeconds(5))))
+                .andReturn()
+                .getResponse()
+                .getStatus();
+    }
+
+    private MvcResult concurrentCancel(
+            String tradeId,
+            CountDownLatch ready,
+            CountDownLatch start) throws Exception {
+        ready.countDown();
+        start.await();
+        return mockMvc.perform(post("/api/trades/{id}/cancel", tradeId))
+                .andReturn();
     }
 
     private int concurrentImportRegistration(

@@ -26,6 +26,7 @@ labelled `MOCK`; Finnhub quotes and Redis fallback values are distinguished as
 - Deterministic Mock quotes or explicitly configured Finnhub quotes
 - Redis quote caching with fresh and retained stale-fallback periods
 - Provider status and opt-in Demo outage controls
+- Browser-retained searched-ticker list with per-ticker unavailable states
 - Backend-calculated unrealized P&L with partial quote availability
 - Dashboard KPIs, Position P&L, recent Activity, and persistent one-minute
   valuation history captured from current provider quotes
@@ -181,6 +182,13 @@ Useful configuration:
 | `MARKET_DATA_FRESH_TTL` | `60s` | Redis fresh period |
 | `MARKET_DATA_RETENTION_TTL` | `24h` | Retained stale-fallback period |
 | `MARKET_DATA_DEMO_CONTROLS_ENABLED` | `false` | Opt-in Demo outage API |
+
+The application default for Demo controls remains `false`. Local Compose
+defaults the switch to `true`, but the backend exposes the controls only when
+`MARKET_DATA_PROVIDER=finnhub`; set the variable explicitly to `false` to hide
+them. Clicking **Simulate outage** or **Restore provider** refreshes the visible
+quotes automatically, so the UI immediately demonstrates Redis fallback or
+provider recovery.
 
 Timeouts, connection failures, and 5xx responses have at most one retry.
 400/404, 401/403, 429, and malformed responses are not retried. Finnhub never
